@@ -63,6 +63,14 @@ const prepareTrackingData = (data: FrameDetections[]): PreparedTrackingData => {
   return { frames, fps, hasDetections };
 };
 
+const isPointInBoundingBox = (
+  x: number,
+  y: number,
+  bbox: { x1: number; y1: number; x2: number; y2: number }
+): boolean => {
+  return x >= bbox.x1 && x <= bbox.x2 && y >= bbox.y1 && y <= bbox.y2;
+};
+
 const findFrameForTime = (
   time: number,
   frames: FrameDetections[],
@@ -156,6 +164,8 @@ const VideoCanvas: React.FC<VideoCanvasProps> = ({
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
+  const [hoveredObject, setHoveredObject] = useState<TrackingObject | null>(null);
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
 
   const preparedData = useMemo(
     () => prepareTrackingData(trackingData),
@@ -292,6 +302,47 @@ const VideoCanvas: React.FC<VideoCanvasProps> = ({
     lastFrameIndexRef.current = 0;
   };
 
+  const handleMouseMove = (event: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    const video = videoRef.current;
+    if (!canvas || !video) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    
+    const x = (event.clientX - rect.left) * scaleX;
+    const y = (event.clientY - rect.top) * scaleY;
+
+    // Update mouse position for tooltip
+    setMousePosition({ x: event.clientX, y: event.clientY });
+
+    // Find the current frame and check for object intersections
+    const frame = findFrameForTime(
+      video.currentTime,
+      preparedData.frames,
+      preparedData.fps,
+      lastFrameIndexRef
+    );
+
+    if (frame && frame.objects.length > 0) {
+      // Find the topmost object that contains the mouse point
+      // (iterate in reverse to get the last drawn object, which appears on top)
+      const hoveredObj = frame.objects
+        .slice()
+        .reverse()
+        .find((obj) => obj.bbox && isPointInBoundingBox(x, y, obj.bbox));
+
+      setHoveredObject(hoveredObj || null);
+    } else {
+      setHoveredObject(null);
+    }
+  };
+
+  const handleMouseLeave = () => {
+    setHoveredObject(null);
+  };
+
   return (
     <div className="space-y-4">
       <div className="relative w-full max-w-4xl">
@@ -302,7 +353,9 @@ const VideoCanvas: React.FC<VideoCanvasProps> = ({
         )}
         <canvas
           ref={canvasRef}
-          className="w-full h-auto rounded-xl border border-gray-200 shadow-lg bg-black"
+          className="w-full h-auto rounded-xl border border-gray-200 shadow-lg bg-black cursor-crosshair"
+          onMouseMove={handleMouseMove}
+          onMouseLeave={handleMouseLeave}
         />
         <video
           ref={videoRef}
@@ -346,6 +399,57 @@ const VideoCanvas: React.FC<VideoCanvasProps> = ({
             🎯 Total objects detected:{" "}
             {preparedData.frames.reduce((acc, f) => acc + f.objects.length, 0)}
           </p>
+        </div>
+      )}
+
+      {/* Detection Tooltip */}
+      {hoveredObject && (
+        <div
+          className="fixed z-50 pointer-events-none"
+          style={{
+            left: mousePosition.x + 10,
+            top: mousePosition.y - 10,
+            transform: mousePosition.x > window.innerWidth - 200 ? 'translateX(-100%)' : 'none'
+          }}
+        >
+          <div className="bg-gray-900 text-white rounded-lg shadow-xl border border-gray-600 p-3 max-w-xs">
+            <div className="space-y-1 text-sm">
+              <div className="font-semibold text-blue-300">
+                🎯 {hoveredObject.class_name}
+              </div>
+              {hoveredObject.tracker_id && (
+                <div className="text-gray-300">
+                  <span className="text-green-400">ID:</span> #{hoveredObject.tracker_id}
+                </div>
+              )}
+              <div className="text-gray-300">
+                <span className="text-yellow-400">Confidence:</span> {Math.round(hoveredObject.confidence * 100)}%
+              </div>
+              {hoveredObject.bbox && (
+                <>
+                  <div className="text-gray-300">
+                    <span className="text-purple-400">Position:</span> ({Math.round(hoveredObject.bbox.x1)}, {Math.round(hoveredObject.bbox.y1)})
+                  </div>
+                  <div className="text-gray-300">
+                    <span className="text-orange-400">Size:</span> {Math.round(hoveredObject.bbox.x2 - hoveredObject.bbox.x1)} × {Math.round(hoveredObject.bbox.y2 - hoveredObject.bbox.y1)}
+                  </div>
+                </>
+              )}
+              {hoveredObject.center && (
+                <div className="text-gray-300">
+                  <span className="text-cyan-400">Center:</span> ({Math.round(hoveredObject.center.x)}, {Math.round(hoveredObject.center.y)})
+                </div>
+              )}
+            </div>
+            {/* Arrow pointing to the object */}
+            <div 
+              className="absolute w-0 h-0 border-l-[6px] border-r-[6px] border-t-[6px] border-l-transparent border-r-transparent border-t-gray-900"
+              style={{
+                left: '20px',
+                bottom: '-6px'
+              }}
+            />
+          </div>
         </div>
       )}
     </div>
