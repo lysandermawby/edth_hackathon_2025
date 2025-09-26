@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Real-time video playback with live object tracking and annotation.
+Integrated real-time video tracker with database storage.
 
-Plays a pre-recorded video file with live bounding boxes, labels, and tracking IDs
-displayed in real-time. Also provides tracking data output for database storage.
+Combines real-time video playback with live tracking and database storage
+for real-time processing and decision making.
 """
 
 import os
@@ -17,16 +17,20 @@ import json
 from datetime import datetime
 import threading
 import queue
+from database_integration import TrackingDatabase, RealTimeDataProcessor
 
-class RealtimeVideoTracker:
-    def __init__(self, model_path="../../models/yolo11.pt", show_labels=True, ignore_classes=None):
+class IntegratedRealtimeTracker:
+    def __init__(self, model_path="../../models/yolo11.pt", show_labels=True, ignore_classes=None, 
+                 enable_database=True, db_path="../../databases/tracking_data.db"):
         """
-        Initialize the real-time video tracker
+        Initialize the integrated real-time tracker
         
         Args:
             model_path (str): Path to YOLO model weights
             show_labels (bool): Whether to show class labels
             ignore_classes (list): List of class names to ignore
+            enable_database (bool): Whether to enable database storage
+            db_path (str): Path to SQLite database file
         """
         self.tracker = sv.ByteTrack()
         self.model = YOLO(model_path)
@@ -35,13 +39,24 @@ class RealtimeVideoTracker:
         self.show_labels = show_labels
         self.ignore_classes = ignore_classes or []
         
+        # Database integration
+        self.enable_database = enable_database
+        if enable_database:
+            # Ensure database directory exists
+            db_dir = os.path.dirname(os.path.abspath(db_path))
+            os.makedirs(db_dir, exist_ok=True)
+            
+            self.db = TrackingDatabase(db_path)
+            self.data_processor = RealTimeDataProcessor(self.db)
+        else:
+            self.db = None
+            self.data_processor = None
+        
         # Tracking data storage
         self.tracking_data = []
         self.frame_count = 0
         self.start_time = None
-        
-        # Data output queue for real-time processing
-        self.data_queue = queue.Queue()
+        self.session_id = None
         
     def filter_detections(self, detections):
         """Filter out ignored classes"""
@@ -122,8 +137,9 @@ class RealtimeVideoTracker:
         tracking_data = self.extract_tracking_data(detections, frame_timestamp)
         self.tracking_data.append(tracking_data)
         
-        # Add to real-time data queue
-        self.data_queue.put(tracking_data)
+        # Send to real-time data processor
+        if self.data_processor:
+            self.data_processor.add_frame_data(tracking_data)
         
         # Create labels
         labels = self.create_labels(detections)
@@ -135,7 +151,7 @@ class RealtimeVideoTracker:
         
         return annotated_frame, detections, tracking_data
     
-    def add_info_overlay(self, frame, fps, total_objects):
+    def add_info_overlay(self, frame, fps, total_objects, db_status=""):
         """Add information overlay to frame"""
         # FPS counter
         cv2.putText(frame, f"FPS: {fps:.1f}", (10, 30), 
@@ -149,8 +165,13 @@ class RealtimeVideoTracker:
         cv2.putText(frame, f"Objects: {total_objects}", (10, 90), 
                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
         
+        # Database status
+        if self.enable_database:
+            cv2.putText(frame, f"DB: {db_status}", (10, 120), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
+        
         # Controls info
-        cv2.putText(frame, "Controls: 'q'=quit, 's'=save, 'r'=reset, SPACE=pause", 
+        cv2.putText(frame, "Controls: 'q'=quit, 's'=save, 'r'=reset, SPACE=pause, 'd'=save data", 
                    (10, frame.shape[0] - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
         
         return frame
@@ -162,7 +183,7 @@ class RealtimeVideoTracker:
         print(f"Tracking data saved to: {output_file}")
     
     def run(self, video_path, save_data=True):
-        """Main loop for real-time video tracking"""
+        """Main loop for integrated real-time video tracking"""
         cap = cv2.VideoCapture(video_path)
         
         if not cap.isOpened():
@@ -181,18 +202,27 @@ class RealtimeVideoTracker:
         print(f"Show labels: {self.show_labels}")
         if self.ignore_classes:
             print(f"Ignoring classes: {', '.join(self.ignore_classes)}")
+        print(f"Database enabled: {self.enable_database}")
         
-        print("\n=== Real-time Video Tracking ===")
+        # Start database session
+        if self.enable_database:
+            self.session_id = self.db.start_session(video_path, fps)
+            self.data_processor.start_processing(video_path, fps)
+            print(f"Database session started: {self.session_id}")
+        
+        print("\n=== Integrated Real-time Video Tracking ===")
         print("Press 'q' to quit")
         print("Press 's' to save current frame")
         print("Press 'r' to reset tracker")
         print("Press SPACE to pause/resume")
         print("Press 'd' to save tracking data")
-        print("================================\n")
+        print("Press 'i' to show database info")
+        print("==========================================\n")
         
         self.start_time = time.time()
         paused = False
         frame_times = []
+        last_db_check = time.time()
         
         try:
             while True:
@@ -217,12 +247,20 @@ class RealtimeVideoTracker:
                     avg_process_time = sum(frame_times) / len(frame_times)
                     current_fps = 1.0 / avg_process_time if avg_process_time > 0 else 0
                     
+                    # Check database status
+                    db_status = "Active"
+                    if time.time() - last_db_check > 5:  # Check every 5 seconds
+                        if self.enable_database:
+                            # Could add database health checks here
+                            pass
+                        last_db_check = time.time()
+                    
                     # Add info overlay
                     total_objects = len(tracking_data['objects'])
-                    annotated_frame = self.add_info_overlay(annotated_frame, current_fps, total_objects)
+                    annotated_frame = self.add_info_overlay(annotated_frame, current_fps, total_objects, db_status)
                     
                     # Display frame
-                    cv2.imshow('Real-time Video Tracking', annotated_frame)
+                    cv2.imshow('Integrated Real-time Video Tracking', annotated_frame)
                     
                     self.frame_count += 1
                     
@@ -237,7 +275,7 @@ class RealtimeVideoTracker:
                     paused_frame = frame.copy() if 'frame' in locals() else np.zeros((height, width, 3), dtype=np.uint8)
                     cv2.putText(paused_frame, "PAUSED - Press SPACE to resume", 
                               (50, height//2), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
-                    cv2.imshow('Real-time Video Tracking', paused_frame)
+                    cv2.imshow('Integrated Real-time Video Tracking', paused_frame)
                 
                 # Handle keyboard input
                 key = cv2.waitKey(1) & 0xFF
@@ -258,6 +296,11 @@ class RealtimeVideoTracker:
                     if save_data:
                         output_file = f"{os.path.splitext(video_path)[0]}_tracking_data.json"
                         self.save_tracking_data(output_file)
+                elif key == ord('i'):
+                    # Show database info
+                    if self.enable_database and self.session_id:
+                        summary = self.db.get_session_summary(self.session_id)
+                        print(f"Database Session Info: {summary}")
                 elif key == ord(' '):
                     # Toggle pause
                     paused = not paused
@@ -271,6 +314,11 @@ class RealtimeVideoTracker:
             cap.release()
             cv2.destroyAllWindows()
             
+            # Stop database processing
+            if self.enable_database and self.data_processor:
+                self.data_processor.stop_processing(self.frame_count)
+                print(f"Database session ended: {self.session_id}")
+            
             # Auto-save tracking data if enabled
             if save_data and self.tracking_data:
                 output_file = f"{os.path.splitext(video_path)[0]}_tracking_data.json"
@@ -280,7 +328,7 @@ class RealtimeVideoTracker:
 
 def parse_arguments():
     """Parse command line arguments"""
-    parser = argparse.ArgumentParser(description="Real-time video tracking with live display")
+    parser = argparse.ArgumentParser(description="Integrated real-time video tracking with database storage")
     parser.add_argument("video_path", type=str, help="Path to the video file", 
                        nargs='?', default="../../data/Cropped_Vid_720p.mp4")
     parser.add_argument("--model", type=str, default="../../models/yolo11.pt",
@@ -291,16 +339,22 @@ def parse_arguments():
                        help="List of class names to ignore (e.g., --ignore-classes car truck)")
     parser.add_argument("--no-save", action="store_true", 
                        help="Don't save tracking data to file")
+    parser.add_argument("--no-database", action="store_true", 
+                       help="Disable database storage")
+    parser.add_argument("--db-path", type=str, default="../../databases/tracking_data.db", 
+                       help="Path to SQLite database file")
     return parser.parse_args()
 
 def main():
     """Main function"""
     args = parse_arguments()
     
-    tracker = RealtimeVideoTracker(
+    tracker = IntegratedRealtimeTracker(
         model_path=args.model,
         show_labels=args.show_labels,
-        ignore_classes=args.ignore_classes
+        ignore_classes=args.ignore_classes,
+        enable_database=not args.no_database,
+        db_path=args.db_path
     )
     
     tracker.run(args.video_path, save_data=not args.no_save)

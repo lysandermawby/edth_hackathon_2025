@@ -21,7 +21,7 @@ import sys
 from contextlib import redirect_stdout, redirect_stderr
 
 tracker = sv.ByteTrack()
-model = YOLO("yolo11m.pt")
+model = YOLO("../../models/yolo11.pt")
 annotator = sv.LabelAnnotator(text_position=sv.Position.CENTER)
 box_annotator = sv.BoxAnnotator()
 

@@ -74,3 +74,6 @@ logs/
 # Data & Models
 data/
 *.pt
+
+# Databases
+databases/
