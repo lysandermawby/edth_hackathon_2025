@@ -28,7 +28,7 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(SCRIPT_DIR))
 
 class IntegratedRealtimeTracker:
     def __init__(self, model_path="../../models/yolo11m.pt", show_labels=True, ignore_classes=None, 
-                 enable_database=True, db_path="../../databases/tracking_data.db", headless=False):
+                 enable_database=True, db_path="../../databases/tracking_data.db", headless=False, force_gui=False):
         """
         Initialize the integrated real-time tracker
         
@@ -39,6 +39,7 @@ class IntegratedRealtimeTracker:
             enable_database (bool): Whether to enable database storage
             db_path (str): Path to SQLite database file
             headless (bool): Whether to run in headless mode (no GUI)
+            force_gui (bool): Force GUI mode, skip headless detection
         """
         # Set default paths relative to project root
         if model_path is None:
@@ -55,10 +56,28 @@ class IntegratedRealtimeTracker:
         self.headless = headless
         
         # Auto-detect headless mode if running in WSL2 or without display
-        if not self.headless:
-            detected_headless = self._detect_headless_mode()
-            print(f"Headless detection: {detected_headless}")
-            self.headless = detected_headless
+        # Skip detection if GUI is forced
+        if not self.headless and not force_gui:
+            try:
+                detected_headless = self._detect_headless_mode()
+                print(f"Headless detection: {detected_headless}")
+                self.headless = detected_headless
+            except Exception as e:
+                print(f"Headless detection failed, defaulting to headless mode: {e}")
+                self.headless = True
+        elif force_gui:
+            print("GUI mode forced - skipping headless detection")
+            self.headless = False
+            # Test if GUI actually works when forced
+            try:
+                test_img = np.zeros((100, 100, 3), dtype=np.uint8)
+                cv2.imshow('test', test_img)
+                cv2.waitKey(1)
+                cv2.destroyAllWindows()
+                print("GUI test successful - GUI mode enabled")
+            except Exception as e:
+                print(f"WARNING: GUI mode forced but OpenCV doesn't support GUI: {e}")
+                print("The script will attempt to run in GUI mode but may fail during video display.")
         
         # Database integration
         self.enable_database = enable_database
@@ -89,38 +108,35 @@ class IntegratedRealtimeTracker:
         """Detect if running in headless environment (WSL2, no display, etc.)"""
         system = platform.system()
         
-        # On macOS and Windows, always try GUI first since they don't use DISPLAY/WAYLAND
-        if system in ['Darwin', 'Windows']:  # macOS and Windows
-            try:
-                test_img = np.zeros((100, 100, 3), dtype=np.uint8)
-                cv2.imshow('test', test_img)
-                cv2.waitKey(1)
-                cv2.destroyAllWindows()
-                return False  # GUI is available
-            except Exception as e:
-                print(f"GUI test failed on {system}: {e}")
-                return True  # GUI not available
-        
         # For Linux/Unix systems, check environment variables first
         # Check for WSL2 with WSLg (Wayland support)
         if os.environ.get('WAYLAND_DISPLAY'):
-            # WSLg is available, GUI should work
-            return False
-            
-        # Check for display environment
-        if not os.environ.get('DISPLAY') and not os.environ.get('WAYLAND_DISPLAY'):
+            # WSLg is available, but still test GUI
+            pass
+        elif not os.environ.get('DISPLAY') and not os.environ.get('WAYLAND_DISPLAY'):
+            # No display environment detected
+            print(f"No display environment detected on {system}")
             return True
             
         # Try to create a test window to see if GUI is available
+        # This is the most reliable way to detect if OpenCV has GUI support
         try:
             test_img = np.zeros((100, 100, 3), dtype=np.uint8)
             cv2.imshow('test', test_img)
             cv2.waitKey(1)
             cv2.destroyAllWindows()
-            return False
+            print(f"GUI test successful on {system}")
+            return False  # GUI is available
         except Exception as e:
             print(f"GUI test failed on {system}: {e}")
-            return True
+            return True  # GUI not available
+    
+    def _safe_destroy_windows(self):
+        """Safely destroy OpenCV windows, handling cases where GUI is not available"""
+        try:
+            cv2.destroyAllWindows()
+        except Exception as e:
+            print(f"Warning: Could not destroy OpenCV windows: {e}")
         
     def filter_detections(self, detections):
         """Filter out ignored classes"""
@@ -396,9 +412,9 @@ class IntegratedRealtimeTracker:
         finally:
             cap.release()
             
-            # Only destroy windows in GUI mode
+            # Safely destroy windows (handles cases where GUI is not available)
             if not self.headless:
-                cv2.destroyAllWindows()
+                self._safe_destroy_windows()
             
             # Stop database processing
             if self.enable_database and self.data_processor:
@@ -449,6 +465,7 @@ def main():
     
     # Handle GUI/headless mode flags
     headless_mode = args.headless
+    force_gui = args.gui
     if args.gui:
         headless_mode = False
         print("Forcing GUI mode (--gui flag detected)")
@@ -459,7 +476,8 @@ def main():
         ignore_classes=args.ignore_classes,
         enable_database=not args.no_database,
         db_path=args.db_path,
-        headless=headless_mode
+        headless=headless_mode,
+        force_gui=force_gui
     )
     
     tracker.run(args.video_path, save_data=not args.no_save)
