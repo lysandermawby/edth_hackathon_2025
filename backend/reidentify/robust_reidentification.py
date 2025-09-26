@@ -160,9 +160,9 @@ class MultiModalFeatureExtractor:
         
         # Feature weights for combination
         self.feature_weights = {
-            'color_hist': 0.3,
-            'hog': 0.2,
-            'deep': 0.5
+            'color_hist': 0.4,
+            'hog': 0.6,
+            'deep': 0.0
         }
         
     def _init_deep_model(self):
@@ -266,7 +266,7 @@ class MultiModalFeatureExtractor:
         features['hog'] = self.extract_hog_features(image, bbox)
         
         # Deep learning features
-        features['deep'] = self.extract_deep_features(image, bbox)
+        #features['deep'] = self.extract_deep_features(image, bbox)
         
         return features
     
