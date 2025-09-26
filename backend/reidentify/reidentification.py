@@ -242,13 +242,14 @@ class VehicleReidentifier:
         
         print("✅ Vehicle reidentifier initialized!")
     
-    def update_tracking(self, detections: sv.Detections, frame_idx: int) -> sv.Detections:
+    def update_tracking(self, detections: sv.Detections, frame_idx: int, frame: np.ndarray = None) -> sv.Detections:
         """
         Update tracking with reidentification capabilities
         
         Args:
             detections: Supervision detections with tracking IDs
             frame_idx: Current frame index
+            frame: Current frame for feature extraction (optional)
             
         Returns:
             Updated detections with reidentified tracks
@@ -259,9 +260,12 @@ class VehicleReidentifier:
         # Extract features for all detections
         features = []
         for i, bbox in enumerate(detections.xyxy):
-            # Get the full frame (we'll need to pass this in the main loop)
-            # For now, we'll use a placeholder
-            feature = np.random.randn(config.FEATURE_DIM)  # Placeholder
+            if frame is not None:
+                # Extract real features from the frame
+                feature = feature_extractor.extract_features(frame, bbox)
+            else:
+                # Fallback to placeholder if no frame provided
+                feature = np.random.randn(config.FEATURE_DIM)
             features.append(feature)
         
         # Update tracking history
@@ -401,8 +405,8 @@ class EnhancedTracker:
         # Update tracker
         detections = self.tracker.update_with_detections(detections)
         
-        # Update reidentifier
-        detections = self.reidentifier.update_tracking(detections, self.frame_count)
+        # Update reidentifier with frame for feature extraction
+        detections = self.reidentifier.update_tracking(detections, self.frame_count, frame)
         
         # Create labels with enhanced information
         labels = self._create_labels(detections)
@@ -863,6 +867,11 @@ if __name__ == "__main__":
         
         # Plot results
         analyzer.plot_processing_performance()
+        
+        # Analyze feature similarities with real vehicle IDs
+        print("\n🔍 Analyzing feature similarities with real vehicle IDs...")
+        # Note: This will be called after the function is defined later in the file
+        # analyze_feature_similarities(use_real_data=True)
     else:
         print(f"❌ Video not found: {video_path}")
         # print("Available videos:")
@@ -901,24 +910,46 @@ test_features = test_feature_extraction()
 # SIMILARITY ANALYSIS
 # =============================================================================
 
-def analyze_feature_similarities():
+def analyze_feature_similarities(use_real_data: bool = True):
     """Analyze feature similarities for different scenarios"""
     print("🔍 Analyzing feature similarities...")
     
-    # Generate multiple feature vectors
-    num_features = 5
-    features = []
-    labels = []
-    
-    for i in range(num_features):
-        # Create slightly different features
-        base_feature = np.random.randn(config.FEATURE_DIM)
-        noise = np.random.normal(0, 0.1, config.FEATURE_DIM)
-        feature = base_feature + noise
-        feature = feature / (np.linalg.norm(feature) + 1e-8)
+    if use_real_data and hasattr(reidentifier, 'tracking_history'):
+        # Use real tracking data if available
+        features = []
+        labels = []
         
-        features.append(feature)
-        labels.append(f"Vehicle_{i+1}")
+        for track_id, history in reidentifier.tracking_history.items():
+            if len(history['features']) > 0:
+                # Use the most recent feature for each track
+                latest_feature = list(history['features'])[-1]
+                if isinstance(latest_feature, np.ndarray) and latest_feature.size > 0:
+                    features.append(latest_feature)
+                    labels.append(f"ID_{track_id}")
+        
+        if len(features) < 2:
+            print("⚠️  Not enough real tracking data available, using dummy data...")
+            use_real_data = False
+    
+    if not use_real_data:
+        # Generate dummy feature vectors for demonstration
+        num_features = 5
+        features = []
+        labels = []
+        
+        for i in range(num_features):
+            # Create slightly different features
+            base_feature = np.random.randn(config.FEATURE_DIM)
+            noise = np.random.normal(0, 0.1, config.FEATURE_DIM)
+            feature = base_feature + noise
+            feature = feature / (np.linalg.norm(feature) + 1e-8)
+            
+            features.append(feature)
+            labels.append(f"Vehicle_{i+1}")
+    
+    if len(features) < 2:
+        print("❌ Need at least 2 features to analyze similarities")
+        return
     
     features = np.array(features)
     
@@ -930,12 +961,27 @@ def analyze_feature_similarities():
     avg_similarity = np.mean(similarity_matrix[np.triu_indices_from(similarity_matrix, k=1)])
     
     print(f"✅ Similarity analysis complete!")
+    print(f"   Data source: {'Real tracking data' if use_real_data else 'Dummy data'}")
+    print(f"   Number of tracks: {len(features)}")
     print(f"   Average similarity: {avg_similarity:.4f}")
     print(f"   Max similarity: {similarity_matrix.max():.4f}")
     print(f"   Min similarity: {similarity_matrix.min():.4f}")
+    
+    # Show which tracks are most/least similar
+    if len(features) > 2:
+        # Find most similar pair
+        upper_tri = np.triu_indices_from(similarity_matrix, k=1)
+        max_sim_idx = np.argmax(similarity_matrix[upper_tri])
+        i, j = upper_tri[0][max_sim_idx], upper_tri[1][max_sim_idx]
+        print(f"   Most similar: {labels[i]} ↔ {labels[j]} ({similarity_matrix[i,j]:.4f})")
+        
+        # Find least similar pair
+        min_sim_idx = np.argmin(similarity_matrix[upper_tri])
+        i, j = upper_tri[0][min_sim_idx], upper_tri[1][min_sim_idx]
+        print(f"   Least similar: {labels[i]} ↔ {labels[j]} ({similarity_matrix[i,j]:.4f})")
 
-# Run similarity analysis
-analyze_feature_similarities()
+# Run similarity analysis (will use dummy data initially)
+analyze_feature_similarities(use_real_data=False)
 
 # %%
 # =============================================================================
@@ -993,5 +1039,13 @@ print("   • Wildlife monitoring: Track animals in nature")
 print("   • Security systems: Track people and objects")
 print("   • Traffic analysis: Track vehicles and pedestrians")
 print("   • Sports analysis: Track players and equipment")
+
+print("\n🔍 FEATURE SIMILARITY ANALYSIS:")
+print("   • After processing a video, call: analyze_feature_similarities(use_real_data=True)")
+print("   • This will show similarity matrix with actual vehicle IDs (e.g., ID_1, ID_2, etc.)")
+print("   • The matrix shows how similar different tracked vehicles are to each other")
+print("   • Useful for identifying potential reidentification opportunities")
+print("   • Example: After running process_video_with_reidentification(), call:")
+print("     analyze_feature_similarities(use_real_data=True)")
 
 # %%
