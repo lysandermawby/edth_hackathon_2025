@@ -105,8 +105,6 @@ class TrackingDatabase:
         except ValueError:
             # If we can't make it relative (different drives on Windows), return as-is
             return video_path
-    
->>>>>>> main
     def end_session(self, session_id: int, total_frames: int):
         """End a tracking session"""
         conn = sqlite3.connect(self.db_path)
