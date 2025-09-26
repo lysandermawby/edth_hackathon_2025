@@ -71,5 +71,6 @@ logs/
 *.tmp
 *.temp
 
-# Data
+# Data & Models
 data/
+*.pt
