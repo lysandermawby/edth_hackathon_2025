@@ -74,4 +74,10 @@ logs/
 # Data & Models
 data/
 *.pt
+
+# Databases
+databases/
+
+# Output frames
+output_frames/*
 *.jpg
