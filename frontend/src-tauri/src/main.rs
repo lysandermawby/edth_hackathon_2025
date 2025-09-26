@@ -19,7 +19,7 @@ async fn run_python_tracker(tracker_type: String) -> Result<String, String> {
 
     for python_cmd in &python_commands {
         let output = Command::new(python_cmd)
-            .current_dir("..")  // Set working directory to project root
+            .current_dir("../..")  // Set working directory to project root (go up two levels from src-tauri)
             .arg(script_path)
             .output();
 
@@ -65,7 +65,7 @@ async fn process_video(video_path: String) -> Result<String, String> {
 
     for python_cmd in &python_commands {
         let output = Command::new(python_cmd)
-            .current_dir("..")  // Set working directory to project root
+            .current_dir("../..")  // Set working directory to project root (go up two levels from src-tauri)
             .arg(script_path)
             .arg(&video_path)
             .output();
@@ -106,7 +106,7 @@ async fn process_video(video_path: String) -> Result<String, String> {
 #[command]
 async fn get_system_info() -> Result<String, String> {
     let output = Command::new("python3")
-        .current_dir("..")  // Set working directory to project root
+        .current_dir("../..")  // Set working directory to project root (go up two levels from src-tauri)
         .arg("-c")
         .arg("import sys; import cv2; print(f'Python: {sys.version}'); print(f'OpenCV: {cv2.__version__}')")
         .output()
@@ -124,7 +124,7 @@ async fn get_system_info() -> Result<String, String> {
 async fn list_video_files() -> Result<Vec<String>, String> {
     use std::fs;
 
-    let data_dir = "../data";  // Relative to frontend/src-tauri
+    let data_dir = "../../data";  // Relative to frontend/src-tauri (go up two levels to project root)
     if !std::path::Path::new(data_dir).exists() {
         return Ok(vec![]);
     }
