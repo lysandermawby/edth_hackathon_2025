@@ -59,22 +59,69 @@ def display_tracking_sessions(cursor):
     table_data = [list(session) for session in tracking_sessions]
     print("\n## Tracking Sessions")
     print(tabulate(table_data, headers=columns, tablefmt="pipe"))
+    print(f"\n**Total sessions: {len(tracking_sessions)}**")
     
     return tracking_sessions
+
+def display_tracked_objects(cursor, limit=None):
+    """display the tracked objects in the database"""
+    if limit:
+        cursor.execute("SELECT * FROM tracked_objects ORDER BY id DESC LIMIT ?;", (limit,))
+        query_desc = f" (showing latest {limit})"
+    else:
+        cursor.execute("SELECT * FROM tracked_objects;")
+        query_desc = ""
+    
+    tracked_objects = cursor.fetchall()
+    
+    # Get column names from the existing function
+    columns_dict = find_column_dict(cursor, ['tracked_objects'])
+    columns = columns_dict['tracked_objects']
+    
+    if not tracked_objects:
+        print("No tracked objects found.")
+        return tracked_objects
+        
+    # Convert data to list of lists with column headers
+    table_data = [list(obj) for obj in tracked_objects]
+    print(f"\n## Tracked Objects{query_desc}")
+    print(tabulate(table_data, headers=columns, tablefmt="pipe"))
+    print(f"\n**Total objects shown: {len(tracked_objects)}**")
+    
+    # Get total count if we're showing a limited set
+    if limit:
+        cursor.execute("SELECT COUNT(*) FROM tracked_objects;")
+        total_count = cursor.fetchone()[0]
+        print(f"**Total objects in database: {total_count}**")
+    
+    return tracked_objects
 
 def main(): 
     parser = argparse.ArgumentParser(description="Data visualisation for tracking data stored in a SQLite database")
     parser.add_argument("--db-path", type=str, default="../../databases/tracking_data.db", 
                        help="Path to SQLite database file")
+    parser.add_argument("--show-sessions", action="store_true", 
+                       help="Show tracking sessions table")
+    parser.add_argument("--show-objects", action="store_true", 
+                       help="Show tracked objects table")
+    parser.add_argument("--object-limit", type=int, default=20, 
+                       help="Limit number of objects to show (default: 20, use 0 for all)")
+    parser.add_argument("--show-schema", action="store_true", 
+                       help="Show database schema")
     args = parser.parse_args()
 
     # establishing database connection and cursor
     conn = sqlite3.connect(args.db_path)
     cursor = conn.cursor()
 
-    columns = find_available_columns(cursor)
+    if args.show_schema:
+        columns = find_available_columns(cursor)
 
     tracking_sessions = display_tracking_sessions(cursor)
+
+    if args.show_objects:
+        object_limit = None if args.object_limit == 0 else args.object_limit
+        tracked_objects = display_tracked_objects(cursor, object_limit)
 
     cursor.close()
     conn.close()
