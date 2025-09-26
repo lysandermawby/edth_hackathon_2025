@@ -27,6 +27,9 @@ def start_tauri_app():
         print("Note: Some Python trackers may not work due to dependency issues")
         print("But the GUI interface should load successfully\n")
 
+        # Change to frontend directory
+        os.chdir("frontend")
+
         # Check if we're in development mode
         if os.path.exists("src-tauri/Cargo.toml") and os.path.exists("package.json"):
             print("Installing npm dependencies first...")

@@ -8,9 +8,9 @@ use tauri::command;
 #[command]
 async fn run_python_tracker(tracker_type: String) -> Result<String, String> {
     let script_path = match tracker_type.as_str() {
-        "yolo" => "src/tracking/realtime_tracker.py",
-        "transformer" => "src/tracking/realtime_tracker_transformer.py",
-        "run_menu" => "src/tracking/run_realtime_tracking.py",
+        "yolo" => "../backend/tracking/realtime_tracker.py",
+        "transformer" => "../backend/tracking/realtime_tracker_transformer.py",
+        "run_menu" => "../backend/tracking/run_realtime_tracking.py",
         _ => return Err("Invalid tracker type".to_string()),
     };
 
@@ -58,7 +58,7 @@ async fn run_python_tracker(tracker_type: String) -> Result<String, String> {
 #[command]
 async fn process_video(video_path: String) -> Result<String, String> {
     let output = Command::new("python")
-        .arg("src/tracking/trackers_test.py")
+        .arg("../backend/tracking/trackers_test.py")
         .arg(&video_path)
         .output()
         .map_err(|e| format!("Failed to execute video processing: {}", e))?;
@@ -91,7 +91,7 @@ async fn get_system_info() -> Result<String, String> {
 async fn list_video_files() -> Result<Vec<String>, String> {
     use std::fs;
 
-    let data_dir = "data";
+    let data_dir = "../data";
     if !std::path::Path::new(data_dir).exists() {
         return Ok(vec![]);
     }
