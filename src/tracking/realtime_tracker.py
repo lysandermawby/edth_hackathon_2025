@@ -51,7 +51,7 @@ class RealtimeTracker:
         detections = sv.Detections.from_ultralytics(result)
         
         # Update tracker
-        detections = self.tracker.update(detections)
+        detections = self.tracker.update_with_detections(detections)
         
         # Create labels with tracker IDs
         labels = []
