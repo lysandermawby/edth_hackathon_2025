@@ -44,7 +44,9 @@ class IntegratedRealtimeTracker:
         
         # Auto-detect headless mode if running in WSL2 or without display
         if not self.headless:
-            self.headless = self._detect_headless_mode()
+            detected_headless = self._detect_headless_mode()
+            print(f"Headless detection: {detected_headless}")
+            self.headless = detected_headless
         
         # Database integration
         self.enable_database = enable_database
@@ -73,6 +75,20 @@ class IntegratedRealtimeTracker:
     
     def _detect_headless_mode(self):
         """Detect if running in headless environment (WSL2, no display, etc.)"""
+        import platform
+        
+        # On macOS, always try GUI first since it doesn't use DISPLAY/WAYLAND
+        if platform.system() == 'Darwin':  # macOS
+            try:
+                test_img = np.zeros((100, 100, 3), dtype=np.uint8)
+                cv2.imshow('test', test_img)
+                cv2.waitKey(1)
+                cv2.destroyAllWindows()
+                return False  # GUI is available
+            except:
+                return True  # GUI not available
+        
+        # For Linux/Unix systems, check environment variables first
         # Check for WSL2 with WSLg (Wayland support)
         if os.environ.get('WAYLAND_DISPLAY'):
             # WSLg is available, GUI should work
@@ -404,11 +420,19 @@ def parse_arguments():
                        help="Path to SQLite database file")
     parser.add_argument("--headless", action="store_true", 
                        help="Force headless mode (no GUI display)")
+    parser.add_argument("--gui", action="store_true", 
+                       help="Force GUI mode (override headless detection)")
     return parser.parse_args()
 
 def main():
     """Main function"""
     args = parse_arguments()
+    
+    # Handle GUI/headless mode flags
+    headless_mode = args.headless
+    if args.gui:
+        headless_mode = False
+        print("Forcing GUI mode (--gui flag detected)")
     
     tracker = IntegratedRealtimeTracker(
         model_path=args.model,
@@ -416,7 +440,7 @@ def main():
         ignore_classes=args.ignore_classes,
         enable_database=not args.no_database,
         db_path=args.db_path,
-        headless=args.headless
+        headless=headless_mode
     )
     
     tracker.run(args.video_path, save_data=not args.no_save)
