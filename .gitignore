@@ -74,3 +74,13 @@ logs/
 # Data & Models
 data/
 *.pt
+
+# Tauri GUI
+src-tauri/target/
+
+# Agents
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+github_copilot.md
+.claude/
