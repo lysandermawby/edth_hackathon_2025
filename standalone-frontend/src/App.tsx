@@ -99,7 +99,7 @@ function App() {
           <p className="text-lg opacity-90">
             Real-time object tracking with video visualization
           </p>
-          
+
           {/* Mode Selector */}
           <div className="mt-6 flex justify-center">
             <div className="bg-white/20 rounded-lg p-1 backdrop-blur-sm">
@@ -149,106 +149,108 @@ function App() {
                   📁 Tracking Sessions
                 </h2>
 
-              {error && (
-                <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
-                  {error}
-                </div>
-              )}
-
-              <div className="space-y-3">
-                {sessions.map((session) => (
-                  <div
-                    key={session.session_id}
-                    className={`p-3 rounded-lg border cursor-pointer transition-all ${
-                      selectedSession?.session_id === session.session_id
-                        ? "border-primary-500 bg-primary-50"
-                        : "border-gray-200 hover:border-primary-300 hover:bg-gray-50"
-                    }`}
-                    onClick={() => loadSessionData(session)}
-                  >
-                    <div className="font-medium text-sm text-gray-900">
-                      Session #{session.session_id}
-                    </div>
-                    <div className="text-xs text-gray-600 mt-1">
-                      {session.video_path.split("/").pop()}
-                    </div>
-                    <div className="text-xs text-gray-500 mt-1">
-                      {session.total_frames
-                        ? `${session.total_frames} frames`
-                        : "In progress"}
-                      {session.fps && ` • ${session.fps} FPS`}
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      {new Date(session.start_time).toLocaleString()}
-                    </div>
+                {error && (
+                  <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+                    {error}
                   </div>
-                ))}
+                )}
 
-                {sessions.length === 0 && !error && (
-                  <div className="text-gray-500 text-center py-4">
-                    No tracking sessions found
+                <div className="space-y-3">
+                  {sessions.map((session) => (
+                    <div
+                      key={session.session_id}
+                      className={`p-3 rounded-lg border cursor-pointer transition-all ${
+                        selectedSession?.session_id === session.session_id
+                          ? "border-primary-500 bg-primary-50"
+                          : "border-gray-200 hover:border-primary-300 hover:bg-gray-50"
+                      }`}
+                      onClick={() => loadSessionData(session)}
+                    >
+                      <div className="font-medium text-sm text-gray-900">
+                        Session #{session.session_id}
+                      </div>
+                      <div className="text-xs text-gray-600 mt-1">
+                        {session.video_path.split("/").pop()}
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        {session.total_frames
+                          ? `${session.total_frames} frames`
+                          : "In progress"}
+                        {session.fps && ` • ${session.fps} FPS`}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {new Date(session.start_time).toLocaleString()}
+                      </div>
+                    </div>
+                  ))}
+
+                  {sessions.length === 0 && !error && (
+                    <div className="text-gray-500 text-center py-4">
+                      No tracking sessions found
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  onClick={fetchSessions}
+                  className="mt-4 w-full bg-primary-500 text-white px-4 py-2 rounded-lg hover:bg-primary-600 transition-colors"
+                >
+                  Refresh Sessions
+                </button>
+              </div>
+            </div>
+
+            {/* Video Player */}
+            <div className="lg:col-span-2">
+              <div className="bg-white rounded-xl p-6 shadow-xl">
+                <h2 className="text-xl font-semibold text-gray-700 mb-4">
+                  Video Player with Detections
+                </h2>
+
+                {loading && (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
+                    <span className="ml-3 text-gray-600">
+                      Loading tracking data...
+                    </span>
+                  </div>
+                )}
+
+                {selectedSession && !loading && (
+                  <div className="space-y-4">
+                    <div className="text-sm text-gray-600 border-b pb-2">
+                      <p>
+                        <strong>Video:</strong> {selectedSession.video_path}
+                      </p>
+                      <p>
+                        <strong>Frames:</strong> {trackingData.length}
+                      </p>
+                      <p>
+                        <strong>Detections:</strong>{" "}
+                        {trackingData.reduce(
+                          (acc, frame) => acc + frame.objects.length,
+                          0
+                        )}
+                      </p>
+                    </div>
+
+                    <VideoCanvas
+                      videoSrc={getVideoUrl(selectedSession)}
+                      trackingData={trackingData}
+                    />
+                  </div>
+                )}
+
+                {!selectedSession && !loading && (
+                  <div className="text-center py-12 text-gray-500">
+                    <div className="text-4xl mb-4">📹</div>
+                    <p>
+                      Select a tracking session to view the video with
+                      detections
+                    </p>
                   </div>
                 )}
               </div>
-
-              <button
-                onClick={fetchSessions}
-                className="mt-4 w-full bg-primary-500 text-white px-4 py-2 rounded-lg hover:bg-primary-600 transition-colors"
-              >
-                Refresh Sessions
-              </button>
-            </div>
-          </div>
-
-          {/* Video Player */}
-          <div className="lg:col-span-2">
-            <div className="bg-white rounded-xl p-6 shadow-xl">
-              <h2 className="text-xl font-semibold text-gray-700 mb-4">
-                Video Player with Detections
-              </h2>
-
-              {loading && (
-                <div className="flex items-center justify-center py-12">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
-                  <span className="ml-3 text-gray-600">
-                    Loading tracking data...
-                  </span>
-                </div>
-              )}
-
-              {selectedSession && !loading && (
-                <div className="space-y-4">
-                  <div className="text-sm text-gray-600 border-b pb-2">
-                    <p>
-                      <strong>Video:</strong> {selectedSession.video_path}
-                    </p>
-                    <p>
-                      <strong>Frames:</strong> {trackingData.length}
-                    </p>
-                    <p>
-                      <strong>Detections:</strong>{" "}
-                      {trackingData.reduce(
-                        (acc, frame) => acc + frame.objects.length,
-                        0
-                      )}
-                    </p>
-                  </div>
-
-                  <VideoCanvas
-                    videoSrc={getVideoUrl(selectedSession)}
-                    trackingData={trackingData}
-                  />
-                </div>
-              )}
-
-              {!selectedSession && !loading && (
-                <div className="text-center py-12 text-gray-500">
-                  <div className="text-4xl mb-4">📹</div>
-                  <p>
-                    Select a tracking session to view the video with detections
-                  </p>
-                </div>
-              )}
             </div>
           </div>
         )}

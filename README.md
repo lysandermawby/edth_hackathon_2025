@@ -15,7 +15,7 @@ Data is available through [this sharepoint](https://quantumdrones-my.sharepoint.
 ✅ **Camera and video file support**  
 ✅ **Database integration** for session history  
 ✅ **Interactive tooltips** with detection details  
-✅ **Performance monitoring** (FPS, object count)  
+✅ **Performance monitoring** (FPS, object count)
 
 ### Core Capabilities
 
@@ -36,12 +36,14 @@ cd standalone-frontend
 ```
 
 Then open **http://localhost:5173** and:
+
 1. Toggle to **"🔴 Live Detection"** mode
 2. Click **"Connect"** to connect to real-time server
 3. Click **"Start Webcam"** for live camera OR **"Start Sample Video"** for video files
 4. **Hover over detections** for detailed information!
 
 **Features:**
+
 - 🎯 **Live camera feed** with real-time object detection
 - 🎨 **Interactive visualization** with hover tooltips
 - 📊 **Performance stats** (FPS, object count, frame numbers)
@@ -120,11 +122,13 @@ cd standalone-frontend
 ```
 
 This starts:
+
 - 🎯 **Real-time detection server** (ws://localhost:8765)
-- 🗄️ **API server** (http://localhost:3001)  
+- 🗄️ **API server** (http://localhost:3001)
 - 🌐 **Frontend interface** (http://localhost:5173)
 
 **Then:**
+
 1. Open **http://localhost:5173** in your browser
 2. Toggle to **"🔴 Live Detection"** mode
 3. Click **"Connect"** → **"Start Webcam"** or **"Start Sample Video"**
@@ -137,26 +141,32 @@ This starts:
 ### Process Video Files
 
 **Generate annotated video output:**
+
 ```bash
 python backend/tracking/trackers_in_video.py data/your_video.mp4
 ```
+
 Creates `data/your_video_output.mp4` with bounding boxes.
 
 **Generate database + tracking data:**
+
 ```bash
 python backend/tracking/integrated_realtime_tracker.py data/your_video.mp4 --headless
 ```
+
 - Writes to `databases/tracking_data.db`
 - Creates `data/your_video_tracking_data.json`
 
 ### Original Tauri Frontend
 
 **Launch the original desktop app:**
+
 ```bash
 cd frontend
 npm install
 npm run tauri dev
 ```
+
 Use **Preview** to view processed videos with tracking overlays.
 
 ---
@@ -164,9 +174,9 @@ Use **Preview** to view processed videos with tracking overlays.
 ## 🏗️ System Architecture
 
 ```
-📹 Input (Camera/Video) 
+📹 Input (Camera/Video)
     ↓
-🤖 YOLO11 Detection 
+🤖 YOLO11 Detection
     ↓
 🎯 ByteTrack Multi-Object Tracking
     ↓
@@ -208,18 +218,22 @@ Use **Preview** to view processed videos with tracking overlays.
 ## 🐛 Troubleshooting
 
 **Real-time server won't start?**
+
 - Ensure Python dependencies are installed: `pip install websockets opencv-python ultralytics`
 - Check that no other process is using port 8765
 
 **Camera not working?**
+
 - Grant browser camera permissions
 - Try different camera IDs in the interface
 
 **Video file not found?**
+
 - Place videos in `data/` directory
 - Use relative paths like `data/your_video.mp4`
 
 **Performance issues?**
+
 - Close other resource-intensive applications
 - Lower video resolution for better FPS
 
