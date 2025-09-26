@@ -1,6 +1,36 @@
-import React, { useState, useEffect } from 'react'
-import { invoke } from '@tauri-apps/api/core'
-import { OutputProps } from '../types'
+import React, { useEffect, useState } from 'react'
+import { invoke, convertFileSrc } from '@tauri-apps/api/core'
+import AnnotatedVideoCanvas from './AnnotatedVideoCanvas'
+import { OutputProps, FrameDetections } from '../types'
+
+interface PreviewState {
+  videoUrl: string
+  absoluteVideoPath: string
+  trackingPath: string
+  trackingData: FrameDetections[]
+  source: string
+  detections: number
+}
+
+const normaliseVideoInput = (rawPath: string): string | null => {
+  if (!rawPath) return null
+
+  const trimmed = rawPath.trim()
+  if (!trimmed) return null
+
+  const isAbsolute = /^(?:[a-zA-Z]:[\\/]|\\\\|\/)/.test(trimmed)
+  const normalisedSeparators = trimmed.replace(/\\/g, '/')
+
+  if (isAbsolute) return normalisedSeparators
+
+  const withoutLeadingDots = normalisedSeparators.replace(/^\.\/*/, '')
+
+  if (withoutLeadingDots.startsWith('data/') || withoutLeadingDots.startsWith('../')) {
+    return withoutLeadingDots
+  }
+
+  return `data/${withoutLeadingDots}`
+}
 
 const VideoSection: React.FC<OutputProps> = ({ addToOutput }) => {
   const [videoFiles, setVideoFiles] = useState<string[]>([])
@@ -9,6 +39,8 @@ const VideoSection: React.FC<OutputProps> = ({ addToOutput }) => {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
   const [isBrowsing, setIsBrowsing] = useState(false)
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false)
+  const [preview, setPreview] = useState<PreviewState | null>(null)
 
   const refreshVideoList = async (): Promise<void> => {
     setIsRefreshing(true)
@@ -51,22 +83,14 @@ const VideoSection: React.FC<OutputProps> = ({ addToOutput }) => {
   }
 
   const processVideo = async (rawPath: string): Promise<void> => {
-    const videoPath = rawPath?.trim()
+    const resolvedPath = normaliseVideoInput(rawPath)
 
-    if (!videoPath) {
+    if (!resolvedPath) {
       addToOutput('Please select or specify a video file', true)
       return
     }
 
     setIsProcessing(true)
-
-    const isAbsolute = /^(?:[a-zA-Z]:[\\/]|\\\\|\/)/.test(videoPath)
-    const normalisedPath = videoPath.replace(/^\.{0,2}[\\/]/, '')
-    const resolvedPath = isAbsolute
-      ? videoPath
-      : normalisedPath.startsWith('data/') || normalisedPath.startsWith('data\\')
-        ? normalisedPath
-        : `data/${normalisedPath}`
 
     addToOutput(`Processing video: ${resolvedPath}`)
 
@@ -79,6 +103,47 @@ const VideoSection: React.FC<OutputProps> = ({ addToOutput }) => {
       addToOutput(`Failed to process video: ${errorMessage}`, true)
     } finally {
       setIsProcessing(false)
+    }
+  }
+
+  const previewVideo = async (rawPath: string): Promise<void> => {
+    const resolvedPath = normaliseVideoInput(rawPath)
+
+    if (!resolvedPath) {
+      addToOutput('Please select or specify a video file', true)
+      return
+    }
+
+    setIsPreviewLoading(true)
+    setPreview(null)
+
+    try {
+      const absoluteVideoPath = await invoke<string>('resolve_media_path', { mediaPath: resolvedPath })
+      const response = await invoke<{ content: string; path: string }>('load_tracking_data', {
+        videoPath: resolvedPath
+      })
+
+      const parsed = JSON.parse(response.content) as FrameDetections[]
+      const detections = parsed.reduce((total, frame) => total + frame.objects.length, 0)
+
+      const videoUrl = convertFileSrc(absoluteVideoPath)
+
+      setPreview({
+        videoUrl,
+        absoluteVideoPath,
+        trackingPath: response.path,
+        trackingData: parsed,
+        source: resolvedPath,
+        detections
+      })
+
+      addToOutput(`Preview ready for ${resolvedPath}. Loaded annotations from ${response.path}`)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      addToOutput(`Failed to load preview: ${message}`, true)
+      setPreview(null)
+    } finally {
+      setIsPreviewLoading(false)
     }
   }
 
@@ -113,6 +178,13 @@ const VideoSection: React.FC<OutputProps> = ({ addToOutput }) => {
               </option>
             ))}
           </select>
+          <button
+            onClick={() => previewVideo(selectedVideo)}
+            disabled={!selectedVideo || isPreviewLoading}
+            className="mt-4 w-full bg-gradient-to-r from-indigo-500 to-indigo-600 text-white px-4 py-2 rounded-lg hover:from-indigo-600 hover:to-indigo-700 transition-all duration-200 shadow-md hover:shadow-lg disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed"
+          >
+            {isPreviewLoading ? 'Loading Preview...' : 'Preview Selected Video'}
+          </button>
         </div>
         <div className="p-4 border border-gray-200 rounded-lg bg-gray-50">
           <h3 className="text-lg font-semibold text-gray-800 mb-3">Processing Controls</h3>
@@ -148,8 +220,36 @@ const VideoSection: React.FC<OutputProps> = ({ addToOutput }) => {
             >
               {isProcessing ? 'Processing...' : 'Process Selected Video'}
             </button>
+            <button
+              onClick={() => previewVideo(customVideoPath)}
+              disabled={isPreviewLoading || !customVideoPath}
+              className="mt-3 w-full bg-gradient-to-r from-indigo-500 to-indigo-600 text-white px-4 py-2 rounded-lg hover:from-indigo-600 hover:to-indigo-700 transition-all duration-200 shadow-md hover:shadow-lg disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed"
+            >
+              {isPreviewLoading ? 'Loading Preview...' : 'Preview This Video'}
+            </button>
           </div>
         </div>
+      </div>
+      <div className="mt-8">
+        <h3 className="text-lg font-semibold text-gray-800 mb-4">Canvas Preview</h3>
+        {preview ? (
+          <div className="space-y-4">
+            <div className="text-sm text-gray-600 space-y-1">
+              <p className="font-medium text-gray-700">Currently previewing:</p>
+              <p className="truncate">Video: <span className="font-mono text-xs">{preview.absoluteVideoPath}</span></p>
+              <p className="truncate">Tracking: <span className="font-mono text-xs">{preview.trackingPath}</span></p>
+              <p>Total detections across frames: <span className="font-semibold">{preview.detections}</span></p>
+            </div>
+            <AnnotatedVideoCanvas
+              videoSrc={preview.videoUrl}
+              trackingData={preview.trackingData}
+            />
+          </div>
+        ) : (
+          <p className="text-sm text-gray-500">
+            Load a preview to see the original video rendered on the canvas with bounding box annotations.
+          </p>
+        )}
       </div>
     </section>
   )

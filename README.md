@@ -58,3 +58,23 @@ python backend/tracking/trackers_in_video.py data/your_video_name.mp4
 ```
 
 The processed video will be saved alongside the input with `_output.mp4` appended to its filename. Existing outputs are rotated to `*_output_old.mp4` automatically so you never lose the previous run.
+
+### 6. Generate Database + Tracking Metadata
+
+To populate the SQLite database and create the JSON annotations consumed by the GUI canvas, run the integrated tracker (headless mode optional):
+
+```bash
+python backend/tracking/integrated_realtime_tracker.py data/your_video_name.mp4 --headless
+```
+
+This writes detections into `databases/tracking_data.db` and creates `data/your_video_name_tracking_data.json` for use in the frontend preview.
+
+### 7. Launch the GUI with Canvas Overlay
+
+```bash
+cd frontend
+npm install
+npm run tauri dev
+```
+
+Inside the app, use **Preview** to load the original video on a canvas with bounding boxes superimposed from the generated tracking JSON. Make sure you’ve created the `_tracking_data.json` file via step 6 before previewing.

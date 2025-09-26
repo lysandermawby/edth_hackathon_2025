@@ -1,0 +1,47 @@
+export interface BoundingBox {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
+export interface TrackingObject {
+  tracker_id?: number;
+  class_id: number;
+  class_name: string;
+  confidence: number;
+  bbox: BoundingBox;
+  center?: { x: number; y: number };
+}
+
+export interface FrameDetections {
+  frame_number: number;
+  timestamp: number;
+  objects: TrackingObject[];
+}
+
+export interface Session {
+  session_id: number;
+  video_path: string;
+  start_time: string;
+  end_time?: string;
+  total_frames?: number;
+  fps: number;
+}
+
+export interface DetectionData {
+  id: number;
+  session_id: number;
+  frame_number: number;
+  timestamp: number;
+  tracker_id?: number;
+  class_id: number;
+  class_name: string;
+  confidence: number;
+  bbox_x1: number;
+  bbox_y1: number;
+  bbox_x2: number;
+  bbox_y2: number;
+  center_x: number;
+  center_y: number;
+}
