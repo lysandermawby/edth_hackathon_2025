@@ -1,3 +1,15 @@
+#!/usr/bin/env python3
+"""
+Real-time object tracking using YOLO11 model (saved as yolo11m.pt).
+
+Accesses the camera and tracks objects in real-time.
+"""
+
+import os
+import argparse
+import cv2
+import supervision as sv
+
 import cv2
 import supervision as sv
 from ultralytics import YOLO

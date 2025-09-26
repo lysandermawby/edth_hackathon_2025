@@ -169,6 +169,9 @@ def extract_klv_metadata(video_path):
 
 def save_metadata_to_file(metadata, output_file):
     """Save metadata to JSON file"""
+    # Create the output directory if it doesn't exist
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
+    
     with open(output_file, 'w') as f:
         json.dump(metadata, f, indent=2)
     print(f"\nMetadata saved to: {output_file}")
@@ -201,8 +204,15 @@ def main():
         'klv_data_size': len(klv_data) if klv_data else 0
     }
     
-    # Save to file
-    output_file = f"{os.path.splitext(args.video_path)[0]}_metadata.json"
+    # Save to file in metadata subfolder
+    video_dir = os.path.dirname(args.video_path)
+    video_filename = os.path.basename(args.video_path)
+    video_name = os.path.splitext(video_filename)[0]
+    
+    # Create metadata subfolder path
+    metadata_dir = os.path.join(video_dir, "metadata")
+    output_file = os.path.join(metadata_dir, f"{video_name}_metadata.json")
+    
     save_metadata_to_file(all_metadata, output_file)
     
     print("\n" + "=" * 50)
