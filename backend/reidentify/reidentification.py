@@ -69,34 +69,34 @@ class Config:
     # Object-specific configurations
     OBJECT_CONFIGS = {
         'person': {
-            'similarity_threshold': 0.8,  # People are more distinctive
-            'temporal_window': 60,        # Longer memory for people
+            'similarity_threshold': 0.6,  # People are more distinctive
+            'temporal_window': 150,        # Longer memory for people
             'occlusion_threshold': 0.4,
-            'trace_length': 30
+            'trace_length': 0
         },
         'car': {
-            'similarity_threshold': 0.7,  # Cars have moderate distinctiveness
-            'temporal_window': 30,
+            'similarity_threshold': 0.6,  # Cars have moderate distinctiveness
+            'temporal_window': 150,
             'occlusion_threshold': 0.3,
-            'trace_length': 20
+            'trace_length': 0
         },
         'truck': {
             'similarity_threshold': 0.6,  # Trucks are less distinctive
-            'temporal_window': 45,
+            'temporal_window': 150,
             'occlusion_threshold': 0.3,
-            'trace_length': 25
+            'trace_length': 0
         },
         'bicycle': {
-            'similarity_threshold': 0.75, # Bicycles are fairly distinctive
-            'temporal_window': 40,
+            'similarity_threshold': 0.6, # Bicycles are fairly distinctive
+            'temporal_window': 150,
             'occlusion_threshold': 0.35,
-            'trace_length': 15
+            'trace_length': 0
         },
         'default': {
-            'similarity_threshold': 0.7,
-            'temporal_window': 30,
+            'similarity_threshold': 0.6,
+            'temporal_window': 150,
             'occlusion_threshold': 0.3,
-            'trace_length': 20
+            'trace_length': 0
         }
     }
     
@@ -106,7 +106,7 @@ class Config:
     OCCLUSION_THRESHOLD = 0.3
     
     # Visualization
-    TRACE_LENGTH = 20
+    TRACE_LENGTH = 0
     BOX_THICKNESS = 2
     TEXT_SCALE = 0.6
     
@@ -163,13 +163,14 @@ class VehicleFeatureExtractor:
         
         print(f"✅ Feature extractor initialized on {self.device}")
     
-    def extract_features(self, image: np.ndarray, bbox: np.ndarray) -> np.ndarray:
+    def extract_features(self, image: np.ndarray, bbox: np.ndarray, debug: bool = False) -> np.ndarray:
         """
         Extract features from a vehicle crop
         
         Args:
             image: Full frame image
             bbox: Bounding box [x1, y1, x2, y2]
+            debug: Whether to print debug information
             
         Returns:
             Feature vector of shape (FEATURE_DIM,)
@@ -179,12 +180,22 @@ class VehicleFeatureExtractor:
         x1, y1 = max(0, x1), max(0, y1)
         x2, y2 = min(image.shape[1], x2), min(image.shape[0], y2)
         
+        if debug:
+            print(f"      Bbox: [{x1}, {y1}, {x2}, {y2}], Image shape: {image.shape}")
+        
         if x2 <= x1 or y2 <= y1:
+            if debug:
+                print(f"      ❌ Invalid bbox dimensions")
             return np.zeros(config.FEATURE_DIM)
             
         vehicle_crop = image[y1:y2, x1:x2]
         
+        if debug:
+            print(f"      Crop shape: {vehicle_crop.shape}")
+        
         if vehicle_crop.size == 0:
+            if debug:
+                print(f"      ❌ Empty crop")
             return np.zeros(config.FEATURE_DIM)
         
         # Preprocess and extract features
@@ -197,10 +208,15 @@ class VehicleFeatureExtractor:
                 
             # L2 normalize features
             features = features / (np.linalg.norm(features) + 1e-8)
+            
+            if debug:
+                print(f"      ✅ Feature extracted: shape {features.shape}, norm {np.linalg.norm(features):.4f}")
+            
             return features
             
         except Exception as e:
-            print(f"Warning: Feature extraction failed: {e}")
+            if debug:
+                print(f"      ❌ Feature extraction failed: {e}")
             return np.zeros(config.FEATURE_DIM)
 
 # Initialize feature extractor
@@ -226,7 +242,8 @@ class VehicleReidentifier:
             'last_seen': 0,
             'features': deque(maxlen=config.MAX_FEATURES_PER_ID),
             'bbox_history': deque(maxlen=10),
-            'confidence_history': deque(maxlen=10)
+            'confidence_history': deque(maxlen=10),
+            'class_name': 'unknown'
         })
         
         # Lost tracks: tracks that disappeared and might reappear
@@ -240,6 +257,9 @@ class VehicleReidentifier:
             'new_tracks': 0
         }
         
+        # Track which IDs were reidentified in the current frame
+        self.reidentified_this_frame = set()
+        
         print("✅ Vehicle reidentifier initialized!")
     
     def update_tracking(self, detections: sv.Detections, frame_idx: int, frame: np.ndarray = None) -> sv.Detections:
@@ -249,7 +269,7 @@ class VehicleReidentifier:
         Args:
             detections: Supervision detections with tracking IDs
             frame_idx: Current frame index
-            frame: Current frame for feature extraction (optional)
+            frame: Current frame for feature extraction (required)
             
         Returns:
             Updated detections with reidentified tracks
@@ -257,31 +277,67 @@ class VehicleReidentifier:
         if len(detections) == 0:
             return detections
             
-        # Extract features for all detections
-        features = []
-        for i, bbox in enumerate(detections.xyxy):
-            if frame is not None:
-                # Extract real features from the frame
-                feature = feature_extractor.extract_features(frame, bbox)
-            else:
-                # Fallback to placeholder if no frame provided
-                feature = np.random.randn(config.FEATURE_DIM)
-            features.append(feature)
+        if frame is None:
+            print(f"⚠️  Frame {frame_idx}: No frame provided for feature extraction")
+            return detections
         
-        # Update tracking history
+        # Clear reidentified tracks from previous frame
+        self.reidentified_this_frame.clear()
+            
+        # Debug: Print detection info
+        if frame_idx % 30 == 0:  # Every second at 30 FPS
+            print(f"🔍 Frame {frame_idx}: {len(detections)} detections")
+            if len(detections) > 0:
+                print(f"   Track IDs: {detections.tracker_id}")
+                print(f"   Class IDs: {detections.class_id if hasattr(detections, 'class_id') else 'None'}")
+            
+        # Extract features for all detections and create mapping
+        detection_features = {}  # Maps detection index to feature
+        for i, bbox in enumerate(detections.xyxy):
+            debug_mode = (frame_idx % 30 == 0 and i == 0)  # Debug first detection every second
+            feature = feature_extractor.extract_features(frame, bbox, debug=debug_mode)
+            
+            # Validate feature
+            if np.linalg.norm(feature) < 1e-6:
+                if debug_mode:
+                    print(f"   ❌ Invalid feature (zero vector) for detection {i}")
+                # Skip this detection - don't store feature
+                continue
+            
+            # Store valid feature with its detection index
+            detection_features[i] = feature
+            
+            if debug_mode:
+                print(f"   ✅ Feature extracted: shape {feature.shape}, norm {np.linalg.norm(feature):.4f}")
+        
+        # Debug: Show feature extraction summary
+        if frame_idx % 30 == 0:
+            print(f"   📊 Feature extraction: {len(detection_features)}/{len(detections)} successful")
+        
+        # Update tracking history with valid features only
         for i, track_id in enumerate(detections.tracker_id):
-            if track_id is not None:
+            if track_id is not None and i in detection_features:
+                # Get object class from detection
+                class_id = detections.class_id[i] if hasattr(detections, 'class_id') and detections.class_id is not None else None
+                class_name = self._get_class_name(class_id)
+                
                 self.tracking_history[track_id]['last_seen'] = frame_idx
-                self.tracking_history[track_id]['features'].append(features[i])
+                self.tracking_history[track_id]['features'].append(detection_features[i])
                 self.tracking_history[track_id]['bbox_history'].append(detections.xyxy[i])
                 self.tracking_history[track_id]['confidence_history'].append(detections.confidence[i])
+                self.tracking_history[track_id]['class_name'] = class_name
+                
+                # Debug: Print tracking history info
+                if frame_idx % 30 == 0 and i == 0:  # Debug first track every second
+                    num_features = len(self.tracking_history[track_id]['features'])
+                    print(f"   Track {track_id} ({class_name}): {num_features} features stored")
         
         # Check for lost tracks and attempt reidentification
-        self._handle_lost_tracks(detections, frame_idx)
+        self._handle_lost_tracks(detections, frame_idx, frame)
         
         return detections
     
-    def _handle_lost_tracks(self, detections: sv.Detections, frame_idx: int):
+    def _handle_lost_tracks(self, detections: sv.Detections, frame_idx: int, frame: np.ndarray):
         """
         Handle tracks that have been lost and attempt reidentification
         """
@@ -293,30 +349,49 @@ class VehicleReidentifier:
                 frame_idx - history['last_seen'] > 5 and
                 track_id not in self.lost_tracks):
                 
-                # Move to lost tracks
-                self.lost_tracks[track_id] = {
-                    'last_seen': history['last_seen'],
-                    'features': list(history['features']),
-                    'bbox_history': list(history['bbox_history']),
-                    'confidence_history': list(history['confidence_history'])
-                }
+                # Only move to lost tracks if we have valid features
+                if len(history['features']) > 0:
+                    self.lost_tracks[track_id] = {
+                        'last_seen': history['last_seen'],
+                        'features': list(history['features']),
+                        'bbox_history': list(history['bbox_history']),
+                        'confidence_history': list(history['confidence_history']),
+                        'class_name': history.get('class_name', 'unknown')
+                    }
+                    
+                    if frame_idx % 30 == 0:
+                        print(f"   📤 Track {track_id} moved to lost tracks ({len(history['features'])} features)")
         
         # Attempt reidentification for lost tracks
         if len(self.lost_tracks) > 0 and len(detections) > 0:
-            self._attempt_reidentification(detections, frame_idx)
+            self._attempt_reidentification(detections, frame_idx, frame)
     
-    def _attempt_reidentification(self, detections: sv.Detections, frame_idx: int):
+    def _attempt_reidentification(self, detections: sv.Detections, frame_idx: int, frame: np.ndarray):
         """
         Attempt to reidentify lost tracks with current detections
         """
         if len(detections) == 0:
             return
             
-        # Get object classes for current detections
-        current_classes = getattr(detections, 'data', {}).get('class_name', ['unknown'] * len(detections))
+        # Extract features for current detections
+        current_features = []
+        valid_detection_indices = []
+        
+        for i, bbox in enumerate(detections.xyxy):
+            feature = feature_extractor.extract_features(frame, bbox, debug=False)
+            
+            # Validate feature
+            if np.linalg.norm(feature) > 1e-6:
+                current_features.append(feature)
+                valid_detection_indices.append(i)
+        
+        if len(current_features) == 0:
+            return
+            
+        current_features = np.array(current_features)
         
         for lost_id, lost_data in list(self.lost_tracks.items()):
-            # Get object class for lost track (if available)
+            # Get object class for lost track
             lost_class = lost_data.get('class_name', 'unknown')
             obj_config = config.get_config_for_object(lost_class)
             
@@ -325,18 +400,52 @@ class VehicleReidentifier:
                 # Remove from lost tracks (timeout)
                 del self.lost_tracks[lost_id]
                 self.stats['failed_reidentifications'] += 1
-            else:
-                # Find potential matches of the same class
-                potential_matches = []
-                for i, current_class in enumerate(current_classes):
-                    if current_class == lost_class or current_class == 'unknown':
-                        potential_matches.append(i)
+                if frame_idx % 30 == 0:
+                    print(f"   ⏰ Track {lost_id} timed out (no reidentification)")
+                continue
+            
+            # Get lost track features
+            lost_features = np.array(list(lost_data['features']))
+            if len(lost_features) == 0:
+                continue
                 
-                if potential_matches:
-                    # Here you would implement the actual reidentification logic
-                    # comparing features between lost tracks and current detections
-                    # For now, this is a placeholder
-                    pass
+            # Calculate similarity between lost track and current detections
+            # Use the most recent feature from lost track
+            lost_feature = lost_features[-1].reshape(1, -1)
+            
+            # Calculate cosine similarity
+            similarities = cosine_similarity(lost_feature, current_features)[0]
+            
+            # Find best match above threshold
+            best_match_idx = np.argmax(similarities)
+            best_similarity = similarities[best_match_idx]
+            
+            if best_similarity > obj_config['similarity_threshold']:
+                # Reidentification successful!
+                original_detection_idx = valid_detection_indices[best_match_idx]
+                
+                # Update the detection's track ID to the lost track ID
+                detections.tracker_id[original_detection_idx] = lost_id
+                
+                # Move back to active tracking
+                self.tracking_history[lost_id]['last_seen'] = frame_idx
+                self.tracking_history[lost_id]['features'].append(current_features[best_match_idx])
+                self.tracking_history[lost_id]['bbox_history'].append(detections.xyxy[original_detection_idx])
+                self.tracking_history[lost_id]['confidence_history'].append(detections.confidence[original_detection_idx])
+                
+                # Remove from lost tracks
+                del self.lost_tracks[lost_id]
+                self.stats['successful_reidentifications'] += 1
+                
+                # Mark this track as reidentified this frame
+                self.reidentified_this_frame.add(lost_id)
+                
+                if frame_idx % 30 == 0:
+                    print(f"   ✅ Track {lost_id} reidentified! Similarity: {best_similarity:.3f}")
+                    print(f"   🏷️  Track {lost_id} will show (REID) label this frame")
+            else:
+                if frame_idx % 30 == 0:
+                    print(f"   🔍 Track {lost_id} no match found (best similarity: {best_similarity:.3f}, threshold: {obj_config['similarity_threshold']})")
     
     def get_statistics(self) -> Dict[str, Any]:
         """Get reidentification statistics"""
@@ -352,9 +461,69 @@ class VehicleReidentifier:
             'active_tracks': len(self.tracking_history),
             'lost_tracks': len(self.lost_tracks)
         }
+    
+    def debug_tracking_history(self):
+        """Debug function to check tracking history state"""
+        print("🔍 TRACKING HISTORY DEBUG:")
+        print(f"   Total tracks: {len(self.tracking_history)}")
+        
+        for track_id, history in self.tracking_history.items():
+            num_features = len(history['features'])
+            class_name = history.get('class_name', 'unknown')
+            last_seen = history['last_seen']
+            print(f"   Track {track_id} ({class_name}): {num_features} features, last seen: {last_seen}")
+            
+            if num_features > 0:
+                latest_feature = list(history['features'])[-1]
+                if isinstance(latest_feature, np.ndarray):
+                    print(f"      Latest feature: shape {latest_feature.shape}, norm {np.linalg.norm(latest_feature):.4f}")
+                else:
+                    print(f"      Latest feature: invalid type {type(latest_feature)}")
+        
+        print(f"   Lost tracks: {len(self.lost_tracks)}")
+        for lost_id, lost_data in self.lost_tracks.items():
+            num_features = len(lost_data['features'])
+            class_name = lost_data.get('class_name', 'unknown')
+            print(f"   Lost track {lost_id} ({class_name}): {num_features} features")
+        
+        print(f"   Reidentified this frame: {len(self.reidentified_this_frame)} tracks")
+        if self.reidentified_this_frame:
+            print(f"   Reidentified IDs: {list(self.reidentified_this_frame)}")
+
+    def _get_class_name(self, class_id: int) -> str:
+        """
+        Convert class ID to class name
+        """
+        if class_id is None:
+            return 'unknown'
+            
+        # YOLO COCO class names
+        coco_classes = [
+            'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat',
+            'traffic light', 'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird', 'cat',
+            'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra', 'giraffe', 'backpack',
+            'umbrella', 'handbag', 'tie', 'suitcase', 'frisbee', 'skis', 'snowboard', 'sports ball',
+            'kite', 'baseball bat', 'baseball glove', 'skateboard', 'surfboard', 'tennis racket',
+            'bottle', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple',
+            'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake',
+            'chair', 'couch', 'potted plant', 'bed', 'dining table', 'toilet', 'tv', 'laptop',
+            'mouse', 'remote', 'keyboard', 'cell phone', 'microwave', 'oven', 'toaster', 'sink',
+            'refrigerator', 'book', 'clock', 'vase', 'scissors', 'teddy bear', 'hair drier', 'toothbrush'
+        ]
+        
+        if 0 <= class_id < len(coco_classes):
+            return coco_classes[class_id]
+        else:
+            return 'unknown'
 
 # Initialize reidentifier
 reidentifier = VehicleReidentifier()
+
+# Convenience function to debug the enhanced tracker's reidentifier
+def debug_enhanced_tracker():
+    """Debug the enhanced tracker's reidentifier"""
+    print("🔍 DEBUGGING ENHANCED TRACKER:")
+    enhanced_tracker.reidentifier.debug_tracking_history()
 
 # %%
 # =============================================================================
@@ -441,7 +610,7 @@ class EnhancedTracker:
             if detections.tracker_id[i] is not None:
                 # Check if this is a reidentified track
                 track_id = detections.tracker_id[i]
-                is_reidentified = track_id in self.reidentifier.lost_tracks
+                is_reidentified = track_id in self.reidentifier.reidentified_this_frame
                 
                 label = f"ID: {track_id}"
                 if is_reidentified:
@@ -788,188 +957,52 @@ def process_video_with_reidentification(video_path: str, output_path: str = None
 # UNIVERSAL OBJECT REIDENTIFICATION EXAMPLES
 # =============================================================================
 
-def demonstrate_object_agnostic_capabilities():
-    """
-    Demonstrate how the system works with different object types
-    """
-    print("🌍 Universal Object Reidentification Capabilities")
-    print("=" * 60)
-    
-    # Show supported object types
-    supported_objects = list(config.OBJECT_CONFIGS.keys())
-    print(f"✅ Pre-configured object types: {supported_objects}")
-    
-    # Show how to add new object types
-    print("\n🔧 Adding new object types:")
-    print("""
-    # Example: Add support for animals
-    config.OBJECT_CONFIGS['dog'] = {
-        'similarity_threshold': 0.75,  # Dogs are fairly distinctive
-        'temporal_window': 45,         # Medium memory window
-        'occlusion_threshold': 0.35,
-        'trace_length': 25
-    }
-    
-    config.OBJECT_CONFIGS['bird'] = {
-        'similarity_threshold': 0.6,   # Birds are less distinctive
-        'temporal_window': 20,         # Shorter memory (fast movement)
-        'occlusion_threshold': 0.4,
-        'trace_length': 10
-    }
-    """)
-    
-    # Show YOLO COCO classes that work out of the box
-    coco_classes = [
-        'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train',
-        'truck', 'boat', 'traffic light', 'fire hydrant', 'stop sign',
-        'parking meter', 'bench', 'bird', 'cat', 'dog', 'horse', 'sheep',
-        'cow', 'elephant', 'bear', 'zebra', 'giraffe', 'backpack', 'umbrella'
-    ]
-    
-    print(f"\n🎯 YOLO COCO classes supported: {len(coco_classes)} classes")
-    print("   Examples:", coco_classes[:10], "...")
-    
-    return supported_objects, coco_classes
+# Object types supported by the system
+supported_objects = list(config.OBJECT_CONFIGS.keys())
+print(f"✅ Pre-configured object types: {supported_objects}")
 
-# Run demonstration
-supported_objects, coco_classes = demonstrate_object_agnostic_capabilities()
-
-# %%
-# =============================================================================
-# OBJECT-SPECIFIC PROCESSING EXAMPLES
-# =============================================================================
-
-def process_video_for_specific_objects(video_path: str, target_objects: List[str] = None):
-    """
-    Process video focusing on specific object types
-    
-    Args:
-        video_path: Path to input video
-        target_objects: List of object classes to focus on (e.g., ['person', 'car'])
-    """
-    print(f"🎬 Processing video for specific objects: {target_objects}")
-    
-    if target_objects is None:
-        target_objects = ['person', 'car', 'truck', 'bicycle']
-    
-    # Show configurations for each object type
-    for obj in target_objects:
-        obj_config = config.get_config_for_object(obj)
-        print(f"\n📋 {obj.upper()} Configuration:")
-        for key, value in obj_config.items():
-            print(f"   {key}: {value}")
-    
-    # You would modify the main processing function to filter detections
-    # by object class and use object-specific configurations
-    print(f"\n✅ Ready to process {video_path} for objects: {target_objects}")
-
-# Example usage
-process_video_for_specific_objects("/home/juanqui55/git/edth_hackathon_2025/data/Individual_2.mp4", ['person', 'car', 'truck'])
-
-# %%
-# =============================================================================
-# EXPERIMENTAL TESTING CELLS
-# =============================================================================
-
-# Test with a sample video
-if __name__ == "__main__":
-    # You can run this cell to test the system
-    video_path = "/home/juanqui55/git/edth_hackathon_2025/data/Individual_2.mp4"  # Adjust path as needed
-    
-    if os.path.exists(video_path):
-        print("🚀 Starting universal reidentification experiment...")
-        process_video_with_reidentification(
-            video_path=video_path,
-            output_path="/home/juanqui55/git/edth_hackathon_2025/data/reidentification_output.mp4",
-            max_frames=300,  # Process first 10 seconds for testing
-            show_preview=True,  # Will automatically detect display and save frames if needed
-            preview_save_interval=30  # Save preview frame every 30 frames (1 second at 30 FPS)
-        )
-        
-        # If you're on a remote machine and preview frames were saved, you can view them:
-        # view_saved_preview_frames("preview_frames", max_frames=10)
-        
-        # Plot results
-        analyzer.plot_processing_performance()
-        
-        # Analyze feature similarities with real vehicle IDs
-        print("\n🔍 Analyzing feature similarities with real vehicle IDs...")
-        # Note: This will be called after the function is defined later in the file
-        # analyze_feature_similarities(use_real_data=True)
-    else:
-        print(f"❌ Video not found: {video_path}")
-        # print("Available videos:")
-        # for file in os.listdir("data"):
-        #     if file.endswith(('.mp4', '.avi', '.mov')):
-        #         print(f"  - {file}")
-
-# %%
-# =============================================================================
-# FEATURE EXTRACTION TESTING
-# =============================================================================
-
-def test_feature_extraction():
-    """Test the feature extraction system"""
-    print("🧪 Testing feature extraction...")
-    
-    # Create a dummy image and bbox
-    dummy_image = np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)
-    dummy_bbox = np.array([100, 100, 200, 200])
-    
-    # Extract features
-    features = feature_extractor.extract_features(dummy_image, dummy_bbox)
-    
-    print(f"✅ Feature extraction successful!")
-    print(f"   Feature dimension: {features.shape}")
-    print(f"   Feature norm: {np.linalg.norm(features):.4f}")
-    print(f"   Feature range: [{features.min():.4f}, {features.max():.4f}]")
-    
-    return features
-
-# Run feature extraction test
-test_features = test_feature_extraction()
 
 # %%
 # =============================================================================
 # SIMILARITY ANALYSIS
 # =============================================================================
 
-def analyze_feature_similarities(use_real_data: bool = True):
-    """Analyze feature similarities for different scenarios"""
+def analyze_feature_similarities(reidentifier_instance=None):
+    """Analyze feature similarities using real tracking data"""
     print("🔍 Analyzing feature similarities...")
     
-    if use_real_data and hasattr(reidentifier, 'tracking_history'):
-        # Use real tracking data if available
-        features = []
-        labels = []
-        
-        for track_id, history in reidentifier.tracking_history.items():
-            if len(history['features']) > 0:
-                # Use the most recent feature for each track
-                latest_feature = list(history['features'])[-1]
-                if isinstance(latest_feature, np.ndarray) and latest_feature.size > 0:
-                    features.append(latest_feature)
-                    labels.append(f"ID_{track_id}")
-        
-        if len(features) < 2:
-            print("⚠️  Not enough real tracking data available, using dummy data...")
-            use_real_data = False
+    # Use the provided reidentifier instance or the global one
+    if reidentifier_instance is None:
+        reidentifier_instance = reidentifier
     
-    if not use_real_data:
-        # Generate dummy feature vectors for demonstration
-        num_features = 5
-        features = []
-        labels = []
+    if not hasattr(reidentifier_instance, 'tracking_history'):
+        print("❌ No tracking history available")
+        return
+    
+    # Use real tracking data
+    features = []
+    labels = []
+    
+    print(f"🔍 Checking tracking history: {len(reidentifier_instance.tracking_history)} tracks")
+    
+    for track_id, history in reidentifier_instance.tracking_history.items():
+        num_features = len(history['features'])
+        print(f"   Track {track_id}: {num_features} features")
         
-        for i in range(num_features):
-            # Create slightly different features
-            base_feature = np.random.randn(config.FEATURE_DIM)
-            noise = np.random.normal(0, 0.1, config.FEATURE_DIM)
-            feature = base_feature + noise
-            feature = feature / (np.linalg.norm(feature) + 1e-8)
+        if len(history['features']) > 0:
+            # Use the most recent feature for each track
+            latest_feature = list(history['features'])[-1]
             
-            features.append(feature)
-            labels.append(f"Vehicle_{i+1}")
+            if isinstance(latest_feature, np.ndarray) and latest_feature.size > 0:
+                features.append(latest_feature)
+                labels.append(f"ID_{track_id}")
+                print(f"   ✅ Added feature for track {track_id}")
+            else:
+                print(f"   ❌ Invalid feature for track {track_id}")
+        else:
+            print(f"   ❌ No features for track {track_id}")
+    
+    print(f"📊 Total valid features found: {len(features)}")
     
     if len(features) < 2:
         print("❌ Need at least 2 features to analyze similarities")
@@ -985,7 +1018,6 @@ def analyze_feature_similarities(use_real_data: bool = True):
     avg_similarity = np.mean(similarity_matrix[np.triu_indices_from(similarity_matrix, k=1)])
     
     print(f"✅ Similarity analysis complete!")
-    print(f"   Data source: {'Real tracking data' if use_real_data else 'Dummy data'}")
     print(f"   Number of tracks: {len(features)}")
     print(f"   Average similarity: {avg_similarity:.4f}")
     print(f"   Max similarity: {similarity_matrix.max():.4f}")
@@ -1004,37 +1036,55 @@ def analyze_feature_similarities(use_real_data: bool = True):
         i, j = upper_tri[0][min_sim_idx], upper_tri[1][min_sim_idx]
         print(f"   Least similar: {labels[i]} ↔ {labels[j]} ({similarity_matrix[i,j]:.4f})")
 
-# Run similarity analysis (will use dummy data initially)
-analyze_feature_similarities(use_real_data=False)
+# %%
+# =============================================================================
+# EXPERIMENTAL TESTING CELLS
+# =============================================================================
+
+# Test with a sample video
+if __name__ == "__main__":
+    # You can run this cell to test the system
+    video_path = "/home/alvaro/edth_hackathon_2025/data/Individual_1.mp4"  # Adjust path as needed
+    
+    if os.path.exists(video_path):
+        print("🚀 Starting universal reidentification experiment...")
+        process_video_with_reidentification(
+            video_path=video_path,
+            output_path="/home/alvaro/edth_hackathon_2025/data/reidentification_output.mp4",
+            max_frames=None,  # Process first 10 seconds for testing
+            show_preview=True,  # Will automatically detect display and save frames if needed
+            preview_save_interval=30  # Save preview frame every 30 frames (1 second at 30 FPS)
+        )
+        
+        # If you're on a remote machine and preview frames were saved, you can view them:
+        # view_saved_preview_frames("preview_frames", max_frames=10)
+        
+        # Plot results
+        analyzer.plot_processing_performance()
+        
+        # Analyze feature similarities with real vehicle IDs
+        print("\n🔍 Analyzing feature similarities with real vehicle IDs...")
+        # Use the reidentifier instance from the enhanced tracker
+        analyze_feature_similarities(enhanced_tracker.reidentifier)
+    else:
+        print(f"❌ Video not found: {video_path}")
+        # print("Available videos:")
+        # for file in os.listdir("data"):
+        #     if file.endswith(('.mp4', '.avi', '.mov')):
+        #         print(f"  - {file}")
+
+
 
 # %%
 # =============================================================================
 # CONFIGURATION AND PARAMETER TUNING
 # =============================================================================
 
-def tune_parameters():
-    """Interactive parameter tuning interface"""
-    print("⚙️  Parameter Tuning Interface")
-    print("=" * 40)
-    
-    print("Current configuration:")
-    print(f"  Similarity threshold: {config.SIMILARITY_THRESHOLD}")
-    print(f"  Temporal window: {config.TEMPORAL_WINDOW}")
-    print(f"  Occlusion threshold: {config.OCCLUSION_THRESHOLD}")
-    print(f"  Max features per ID: {config.MAX_FEATURES_PER_ID}")
-    
-    print("\nTo modify parameters, update the Config class and re-run the system.")
-    print("Recommended ranges:")
-    print("  Similarity threshold: 0.5 - 0.9")
-    print("  Temporal window: 10 - 60 frames")
-    print("  Occlusion threshold: 0.2 - 0.5")
-    print("  Max features per ID: 20 - 100")
+# Configuration parameters can be modified in the Config class
+# Object-specific parameters are available in config.OBJECT_CONFIGS
 
-# Run parameter tuning interface
-tune_parameters()
-
-print("\n🎉 Universal Object Reidentification System Ready!")
-print("=" * 60)
+print("\n🎉 Vehicle Reidentification System Ready!")
+print("=" * 50)
 print("🌍 SUPPORTED OBJECT TYPES:")
 print("   ✅ People (person)")
 print("   ✅ Vehicles (car, truck, bus, motorcycle, bicycle)")
@@ -1048,28 +1098,13 @@ print("   • Automatic class-based configuration")
 print("   • Universal feature extraction (ResNet-50)")
 print("   • Flexible similarity thresholds")
 print("   • Adaptive temporal windows")
+print("   • Real-time reidentification")
 
-print("\n📋 NEXT STEPS:")
-print("1. Run the main processing cell to test with your videos")
+print("\n📋 USAGE:")
+print("1. Use process_video_with_reidentification() to process videos")
 print("2. Adjust object-specific parameters in Config.OBJECT_CONFIGS")
-print("3. Add new object types as needed")
-print("4. Analyze results using the visualization tools")
-print("5. Experiment with different feature extraction models")
-print("6. Implement additional reidentification strategies")
-
-print("\n💡 USAGE EXAMPLES:")
-print("   • UAV surveillance: Track people and vehicles")
-print("   • Wildlife monitoring: Track animals in nature")
-print("   • Security systems: Track people and objects")
-print("   • Traffic analysis: Track vehicles and pedestrians")
-print("   • Sports analysis: Track players and equipment")
-
-print("\n🔍 FEATURE SIMILARITY ANALYSIS:")
-print("   • After processing a video, call: analyze_feature_similarities(use_real_data=True)")
-print("   • This will show similarity matrix with actual vehicle IDs (e.g., ID_1, ID_2, etc.)")
-print("   • The matrix shows how similar different tracked vehicles are to each other")
-print("   • Useful for identifying potential reidentification opportunities")
-print("   • Example: After running process_video_with_reidentification(), call:")
-print("     analyze_feature_similarities(use_real_data=True)")
+print("3. Call analyze_feature_similarities(enhanced_tracker.reidentifier) after processing")
+print("4. Features are automatically extracted, stored, and compared")
+print("5. Lost tracks are automatically reidentified when possible")
 
 # %%
