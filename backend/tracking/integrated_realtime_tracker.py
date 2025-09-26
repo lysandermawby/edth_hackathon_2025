@@ -425,7 +425,6 @@ def parse_arguments():
     parser = argparse.ArgumentParser(description="Integrated real-time video tracking with database storage")
     parser.add_argument("video_path", type=str, help="Path to the video file", 
                        nargs='?', default="../../data/Individual_2.mp4")
-                       nargs='?', default=default_video)
     parser.add_argument("--model", type=str, default=default_model,
                        help=f"Path to YOLO model file (default: {default_model})")
     parser.add_argument("--show-labels", action="store_true", 
