@@ -291,7 +291,7 @@ class RealtimeReidentificationTracker:
                 if track_id in self.reid_system.occlusion_handler.lost_tracks:
                     del self.reid_system.occlusion_handler.lost_tracks[track_id]
                 
-                print(f"🔄 Enhanced re-identification: Track {track_id} recovered after longer occlusion")
+                #print(f"🔄 Enhanced re-identification: Track {track_id} recovered after longer occlusion")
         
         return detections
     
