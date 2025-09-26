@@ -8,9 +8,8 @@ The tables are created in the database_integration.py file. They are currently n
 import os
 import argparse
 import sqlite3
-import matplotlib.pyplot as plt
-import seaborn as sns
 from datetime import datetime
+from tabulate import tabulate
 
 def find_tables(cursor):
     """Find the tables available in the database"""
@@ -43,6 +42,26 @@ def find_available_columns(cursor):
 
     return columns
 
+def display_tracking_sessions(cursor):
+    """display the tracking sessions in the database"""
+    cursor.execute("SELECT * FROM tracking_sessions;")
+    tracking_sessions = cursor.fetchall()
+    
+    # Get column names from the existing function
+    columns_dict = find_column_dict(cursor, ['tracking_sessions'])
+    columns = columns_dict['tracking_sessions']
+    
+    if not tracking_sessions:
+        print("No tracking sessions found.")
+        return tracking_sessions
+        
+    # Convert data to list of lists with column headers
+    table_data = [list(session) for session in tracking_sessions]
+    print("\n## Tracking Sessions")
+    print(tabulate(table_data, headers=columns, tablefmt="pipe"))
+    
+    return tracking_sessions
+
 def main(): 
     parser = argparse.ArgumentParser(description="Data visualisation for tracking data stored in a SQLite database")
     parser.add_argument("--db-path", type=str, default="../../databases/tracking_data.db", 
@@ -54,6 +73,8 @@ def main():
     cursor = conn.cursor()
 
     columns = find_available_columns(cursor)
+
+    tracking_sessions = display_tracking_sessions(cursor)
 
     cursor.close()
     conn.close()
