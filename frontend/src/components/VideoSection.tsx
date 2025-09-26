@@ -8,6 +8,7 @@ const VideoSection: React.FC<OutputProps> = ({ addToOutput }) => {
   const [customVideoPath, setCustomVideoPath] = useState('')
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [isBrowsing, setIsBrowsing] = useState(false)
 
   const refreshVideoList = async (): Promise<void> => {
     setIsRefreshing(true)
@@ -26,6 +27,26 @@ const VideoSection: React.FC<OutputProps> = ({ addToOutput }) => {
       addToOutput(`Failed to refresh video list: ${errorMessage}`, true)
     } finally {
       setIsRefreshing(false)
+    }
+  }
+
+  const openFileDialog = async (): Promise<void> => {
+    setIsBrowsing(true)
+
+    try {
+      const filePath = await invoke<string | null>('open_video_file_dialog')
+
+      if (filePath) {
+        setCustomVideoPath(filePath)
+        addToOutput(`Selected video file: ${filePath}`)
+      } else {
+        addToOutput('File selection cancelled')
+      }
+    } catch (error) {
+      const errorMessage = error as string
+      addToOutput(`Failed to open file dialog: ${errorMessage}`, true)
+    } finally {
+      setIsBrowsing(false)
     }
   }
 
@@ -92,20 +113,29 @@ const VideoSection: React.FC<OutputProps> = ({ addToOutput }) => {
             {isProcessing ? 'Processing...' : 'Process Selected Video'}
           </button>
           <div className="pt-4 border-t border-gray-200">
-            <p className="text-sm text-gray-600 mb-2">Or specify a custom video path:</p>
-            <input
-              type="text"
-              value={customVideoPath}
-              onChange={(e) => setCustomVideoPath(e.target.value)}
-              placeholder="data/your_video.mp4"
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 mb-3"
-            />
+            <p className="text-sm text-gray-600 mb-2">Or browse for a video file:</p>
+            <div className="flex gap-2 mb-3">
+              <input
+                type="text"
+                value={customVideoPath}
+                onChange={(e) => setCustomVideoPath(e.target.value)}
+                placeholder="Select or type video file path..."
+                className="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              />
+              <button
+                onClick={openFileDialog}
+                disabled={isBrowsing}
+                className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-4 py-3 rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+              >
+                {isBrowsing ? 'Opening...' : '📁 Browse'}
+              </button>
+            </div>
             <button
               onClick={() => processVideo(customVideoPath)}
-              disabled={isProcessing}
-              className="w-full bg-gradient-to-r from-green-500 to-green-600 text-white px-4 py-2 rounded-lg hover:from-green-600 hover:to-green-700 transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isProcessing || !customVideoPath}
+              className="w-full bg-gradient-to-r from-green-500 to-green-600 text-white px-4 py-2 rounded-lg hover:from-green-600 hover:to-green-700 transition-all duration-200 shadow-md hover:shadow-lg disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed"
             >
-              {isProcessing ? 'Processing...' : 'Process Custom Video'}
+              {isProcessing ? 'Processing...' : 'Process Selected Video'}
             </button>
           </div>
         </div>

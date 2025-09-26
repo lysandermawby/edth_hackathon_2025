@@ -117,13 +117,35 @@ async fn list_video_files() -> Result<Vec<String>, String> {
     Ok(video_files)
 }
 
+// Command to open file dialog for video selection
+#[command]
+async fn open_video_file_dialog(app_handle: tauri::AppHandle) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+
+    let file_path = app_handle
+        .dialog()
+        .file()
+        .add_filter("Video Files", &["mp4", "avi", "mov", "mkv", "webm", "m4v", "flv"])
+        .add_filter("MP4 Files", &["mp4"])
+        .add_filter("All Files", &["*"])
+        .set_title("Select Video File")
+        .blocking_pick_file();
+
+    match file_path {
+        Some(path) => Ok(Some(path.to_string())),
+        None => Ok(None), // User cancelled
+    }
+}
+
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             run_python_tracker,
             process_video,
             get_system_info,
-            list_video_files
+            list_video_files,
+            open_video_file_dialog
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
