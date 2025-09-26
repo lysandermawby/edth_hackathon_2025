@@ -40,8 +40,14 @@ coverage/
 .parcel-cache
 .next
 out
-dist
 build/
+
+# Frontend specific
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/coverage/
+frontend/package-lock.json
 
 # TypeScript
 *.tsbuildinfo
@@ -74,6 +80,18 @@ logs/
 # Data & Models
 data/
 *.pt
+
+# Tauri GUI
+src-tauri/target/
+frontend/src-tauri/target/
+frontend/src-tauri/target-output/
+
+# Agents
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+github_copilot.md
+.claude/
 
 # Databases
 databases/

@@ -6,12 +6,11 @@ This module provides examples of how to store tracking data in various databases
 for real-time processing and decision making.
 """
 
-import json
 import sqlite3
 import time
 import threading
 from datetime import datetime
-from typing import List, Dict, Any
+from typing import Any, Dict, List, Optional
 import queue
 
 class TrackingDatabase:
@@ -73,7 +72,7 @@ class TrackingDatabase:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
-        # Convert absolute path to relative path from project root
+        # Convert absolute path to relative path from project root for storage
         relative_path = self._get_relative_path(video_path)
         
         cursor.execute('''
@@ -106,7 +105,6 @@ class TrackingDatabase:
         except ValueError:
             # If we can't make it relative (different drives on Windows), return as-is
             return video_path
-    
     def end_session(self, session_id: int, total_frames: int):
         """End a tracking session"""
         conn = sqlite3.connect(self.db_path)
@@ -249,13 +247,11 @@ class RealTimeDataProcessor:
         self.running = False
         self.session_id = None
     
-    def start_processing(self, video_path: str, fps: float, session_id: int = None):
+    def start_processing(self, video_path: str, fps: float, session_id: Optional[int] = None):
         """Start real-time data processing"""
         if session_id is not None:
-            # Use existing session ID
             self.session_id = session_id
         else:
-            # Create new session (for backward compatibility)
             self.session_id = self.db.start_session(video_path, fps)
         
         self.running = True

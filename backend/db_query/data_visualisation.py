@@ -1,24 +1,24 @@
 #!/usr/bin/env python3
-"""
-Data visualisation for tracking data stored in a SQLite database.
+"""Utilities for inspecting tracking data stored in the SQLite database."""
 
-The tables are created in the database_integration.py file. They are currently named tracking_sessions and tracked_objects.
-"""
-
-import os
 import argparse
 import sqlite3
-from datetime import datetime
+from typing import Iterable, Optional
+
+import matplotlib.pyplot as plt
+import seaborn as sns
 from tabulate import tabulate
 
+
 def find_tables(cursor):
-    """Find the tables available in the database"""
+    """Return all table names available in the database."""
     cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
     tables = cursor.fetchall()
     return [table[0] for table in tables]
 
+
 def find_column_dict(cursor, tables):
-    """Find the columns available in the tables"""
+    """Return a mapping of table name to its column names."""
     column_dict = {}
     for table in tables:
         cursor.execute(f"PRAGMA table_info({table});")
@@ -26,14 +26,14 @@ def find_column_dict(cursor, tables):
         column_dict[table] = [row[1] for row in columns]
     return column_dict
 
+
 def find_available_columns(cursor):
-    """find the tables available in the database"""
+    """Print and return the available tables and their columns."""
     tables = find_tables(cursor)
     print("--------------------------------")
     print(f"Tables available in the database: {tables}")
     print("--------------------------------")
 
-    # find the columns available in the tracking_sessions table
     columns = find_column_dict(cursor, tables)
 
     for table, column_list in columns.items():
@@ -42,20 +42,19 @@ def find_available_columns(cursor):
 
     return columns
 
+
 def display_tracking_sessions(cursor):
-    """display the tracking sessions in the database"""
+    """Pretty-print tracking sessions using a Markdown table."""
     cursor.execute("SELECT * FROM tracking_sessions;")
     tracking_sessions = cursor.fetchall()
-    
-    # Get column names from the existing function
+
     columns_dict = find_column_dict(cursor, ['tracking_sessions'])
     columns = columns_dict['tracking_sessions']
-    
+
     if not tracking_sessions:
         print("No tracking sessions found.")
         return tracking_sessions
-        
-    # Convert data to list of lists with column headers
+
     table_data = [list(session) for session in tracking_sessions]
     print("\n## Tracking Sessions")
     print(tabulate(table_data, headers=columns, tablefmt="pipe"))
@@ -63,8 +62,9 @@ def display_tracking_sessions(cursor):
     
     return tracking_sessions
 
+
 def display_tracked_objects(cursor, limit=None):
-    """display the tracked objects in the database"""
+    """Display the tracked objects in the database"""
     if limit:
         cursor.execute("SELECT * FROM tracked_objects ORDER BY id DESC LIMIT ?;", (limit,))
         query_desc = f" (showing latest {limit})"
@@ -96,10 +96,73 @@ def display_tracked_objects(cursor, limit=None):
     
     return tracked_objects
 
-def main(): 
+
+def _fetch_class_distribution(cursor, session_id: Optional[int]):
+    """Return (class_name, detections) rows for the requested scope."""
+    if session_id is None:
+        cursor.execute(
+            """
+            SELECT class_name, COUNT(*) AS detections
+            FROM tracked_objects
+            GROUP BY class_name
+            ORDER BY detections DESC
+            """
+        )
+    else:
+        cursor.execute(
+            """
+            SELECT class_name, COUNT(*) AS detections
+            FROM tracked_objects
+            WHERE session_id = ?
+            GROUP BY class_name
+            ORDER BY detections DESC
+            """,
+            (session_id,),
+        )
+
+    return cursor.fetchall()
+
+
+def plot_class_distribution(rows: Iterable[tuple[str, int]], session_id: Optional[int]):
+    """Render a simple bar chart of detection counts per class."""
+    data = list(rows)
+    if not data:
+        print("No detections available for plotting.")
+        return
+
+    classes, counts = zip(*data)
+    sns.set_theme(style="whitegrid")
+    plt.figure(figsize=(10, 6))
+    sns.barplot(x=list(counts), y=list(classes), palette="viridis")
+    title = "Class distribution"
+    if session_id is not None:
+        title += f" (session {session_id})"
+    plt.title(title)
+    plt.xlabel("Detections")
+    plt.ylabel("Class")
+    plt.tight_layout()
+    plt.show()
+
+
+def main():
     parser = argparse.ArgumentParser(description="Data visualisation for tracking data stored in a SQLite database")
-    parser.add_argument("--db-path", type=str, default="../../databases/tracking_data.db", 
-                       help="Path to SQLite database file")
+    parser.add_argument(
+        "--db-path",
+        type=str,
+        default="../../databases/tracking_data.db",
+        help="Path to SQLite database file",
+    )
+    parser.add_argument(
+        "--session-id",
+        type=int,
+        default=None,
+        help="Limit analysis to a specific session identifier",
+    )
+    parser.add_argument(
+        "--show-plots",
+        action="store_true",
+        help="Render seaborn plots for class distributions",
+    )
     parser.add_argument("--show-sessions", action="store_true", 
                        help="Show tracking sessions table")
     parser.add_argument("--show-objects", action="store_true", 
@@ -110,18 +173,22 @@ def main():
                        help="Show database schema")
     args = parser.parse_args()
 
-    # establishing database connection and cursor
     conn = sqlite3.connect(args.db_path)
     cursor = conn.cursor()
 
     if args.show_schema:
-        columns = find_available_columns(cursor)
+        find_available_columns(cursor)
+        
+    if args.show_sessions:
+        display_tracking_sessions(cursor)
 
-    tracking_sessions = display_tracking_sessions(cursor)
+    if args.show_plots:
+        plot_rows = _fetch_class_distribution(cursor, args.session_id)
+        plot_class_distribution(plot_rows, args.session_id)
 
     if args.show_objects:
         object_limit = None if args.object_limit == 0 else args.object_limit
-        tracked_objects = display_tracked_objects(cursor, object_limit)
+        display_tracked_objects(cursor, object_limit)
 
     cursor.close()
     conn.close()
