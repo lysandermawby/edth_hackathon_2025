@@ -18,6 +18,7 @@ from datetime import datetime
 import threading
 import queue
 import sys
+import platform
 from database_integration import TrackingDatabase, RealTimeDataProcessor
 
 class IntegratedRealtimeTracker:
@@ -75,17 +76,18 @@ class IntegratedRealtimeTracker:
     
     def _detect_headless_mode(self):
         """Detect if running in headless environment (WSL2, no display, etc.)"""
-        import platform
+        system = platform.system()
         
-        # On macOS, always try GUI first since it doesn't use DISPLAY/WAYLAND
-        if platform.system() == 'Darwin':  # macOS
+        # On macOS and Windows, always try GUI first since they don't use DISPLAY/WAYLAND
+        if system in ['Darwin', 'Windows']:  # macOS and Windows
             try:
                 test_img = np.zeros((100, 100, 3), dtype=np.uint8)
                 cv2.imshow('test', test_img)
                 cv2.waitKey(1)
                 cv2.destroyAllWindows()
                 return False  # GUI is available
-            except:
+            except Exception as e:
+                print(f"GUI test failed on {system}: {e}")
                 return True  # GUI not available
         
         # For Linux/Unix systems, check environment variables first
@@ -105,7 +107,8 @@ class IntegratedRealtimeTracker:
             cv2.waitKey(1)
             cv2.destroyAllWindows()
             return False
-        except:
+        except Exception as e:
+            print(f"GUI test failed on {system}: {e}")
             return True
         
     def filter_detections(self, detections):
