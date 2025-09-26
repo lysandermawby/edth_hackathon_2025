@@ -9,8 +9,10 @@ use tauri::command;
 async fn run_python_tracker(tracker_type: String) -> Result<String, String> {
     let script_path = match tracker_type.as_str() {
         "yolo" => "backend/tracking/realtime_tracker.py",
-        "transformer" => "backend/tracking/realtime_tracker_transformer.py",
-        "run_menu" => "backend/tracking/run_realtime_tracking.py",
+        "transformer" => {
+            return Err("The transformer-based tracker has been retired in the latest update. Please use the video tracker option instead.".to_string());
+        }
+        "run_menu" => "backend/tracking/realtime_video_tracker.py",
         _ => return Err("Invalid tracker type".to_string()),
     };
 
@@ -58,7 +60,7 @@ async fn run_python_tracker(tracker_type: String) -> Result<String, String> {
 // Command to run video processing
 #[command]
 async fn process_video(video_path: String) -> Result<String, String> {
-    let script_path = "backend/tracking/trackers_test.py";
+    let script_path = "backend/tracking/trackers_in_video.py";
 
     // Try python3 first, then python
     let python_commands = ["python3", "python"];

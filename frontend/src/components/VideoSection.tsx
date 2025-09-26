@@ -50,19 +50,30 @@ const VideoSection: React.FC<OutputProps> = ({ addToOutput }) => {
     }
   }
 
-  const processVideo = async (videoPath: string): Promise<void> => {
-    if (!videoPath || videoPath.trim() === '') {
+  const processVideo = async (rawPath: string): Promise<void> => {
+    const videoPath = rawPath?.trim()
+
+    if (!videoPath) {
       addToOutput('Please select or specify a video file', true)
       return
     }
 
     setIsProcessing(true)
-    addToOutput(`Processing video: ${videoPath}`)
+
+    const isAbsolute = /^(?:[a-zA-Z]:[\\/]|\\\\|\/)/.test(videoPath)
+    const normalisedPath = videoPath.replace(/^\.{0,2}[\\/]/, '')
+    const resolvedPath = isAbsolute
+      ? videoPath
+      : normalisedPath.startsWith('data/') || normalisedPath.startsWith('data\\')
+        ? normalisedPath
+        : `data/${normalisedPath}`
+
+    addToOutput(`Processing video: ${resolvedPath}`)
 
     try {
-      const result = await invoke<string>('process_video', { videoPath })
+      const result = await invoke<string>('process_video', { videoPath: resolvedPath })
       addToOutput(`Video processing completed:\n${result}`)
-      addToOutput(`Output video should be saved as: ${videoPath.replace(/\.[^/.]+$/, '_output.mp4')}`)
+      addToOutput(`Output video should be saved as: ${resolvedPath.replace(/\.[^/.]+$/, '_output.mp4')}`)
     } catch (error) {
       const errorMessage = error as string
       addToOutput(`Failed to process video: ${errorMessage}`, true)
