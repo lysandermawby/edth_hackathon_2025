@@ -9,8 +9,9 @@ from contextlib import redirect_stdout, redirect_stderr
 
 tracker = sv.ByteTrack()
 model = YOLO("yolo11m.pt")
-annotator = sv.LabelAnnotator(text_position=sv.Position.CENTER)
+annotator = sv.LabelAnnotator(text_position=sv.Position.CENTER, )
 box_annotator = sv.BoxAnnotator()
+trace_annotator = sv.TraceAnnotator(trace_length=10)
 
 def parse_arguments():
     """Parse arguments"""
@@ -40,6 +41,7 @@ def callback(frame, frame_idx, progress_bar):
     
     # Annotate frame with boxes and labels
     annotated_frame = box_annotator.annotate(frame, detections)
+    annotated_frame = trace_annotator.annotate(annotated_frame, detections)
     annotated_frame = annotator.annotate(annotated_frame, detections, labels=labels)
     
     # Update progress bar
