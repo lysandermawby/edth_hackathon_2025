@@ -271,7 +271,7 @@ class IntegratedRealtimeTracker:
         # Start database session
         if self.enable_database:
             self.session_id = self.db.start_session(video_path, fps)
-            self.data_processor.start_processing(video_path, fps)
+            self.data_processor.start_processing(video_path, fps, self.session_id)
             print(f"Database session started: {self.session_id}")
         
         if self.headless:
@@ -423,9 +423,13 @@ def parse_arguments():
     default_db = os.path.join(PROJECT_ROOT, "databases", "tracking_data.db")
     
     parser = argparse.ArgumentParser(description="Integrated real-time video tracking with database storage")
-    parser.add_argument("video_path", type=str, help="Path to the video file", 
-                       nargs='?', default="../../data/Individual_2.mp4")
-                       nargs='?', default=default_video)
+    parser.add_argument(
+        "video_path",
+        type=str,
+        help="Path to the video file",
+        nargs='?',
+        default=default_video,
+    )
     parser.add_argument("--model", type=str, default=default_model,
                        help=f"Path to YOLO model file (default: {default_model})")
     parser.add_argument("--show-labels", action="store_true", 

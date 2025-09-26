@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-"""Video object tracking with YOLO11 and ByteTrack.
-
-This script ingests a video file, tracks objects frame-by-frame using the
-Ultralytics YOLO11 model, and writes an annotated copy of the video to disk.
-"""
+"""Video object tracking with YOLO11 and ByteTrack."""
 
 from __future__ import annotations
 
@@ -34,10 +30,10 @@ box_annotator = sv.BoxAnnotator()
 
 
 def parse_arguments() -> argparse.Namespace:
-    # Set default paths relative to project root
+    """Parse CLI arguments."""
     default_video = os.path.join(PROJECT_ROOT, "data", "Cropped_Vid_720p.mp4")
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="Process a video and save an annotated copy")
     parser.add_argument(
         "video_path",
         type=str,
@@ -67,10 +63,8 @@ def to_ignore_mask(detections: sv.Detections, ignore_classes: Set[str]) -> Itera
         yield class_name.lower() not in ignore_classes
 
 
-def format_labels(
-    detections: sv.Detections,
-    show_labels: bool,
-) -> list[str]:
+def format_labels(detections: sv.Detections, show_labels: bool) -> list[str]:
+    """Build label strings for the current detections."""
     labels: list[str] = []
     for idx in range(len(detections)):
         tracker_id = detections.tracker_id[idx]
@@ -97,6 +91,7 @@ def annotate_frame(
     show_labels: bool,
     ignore_classes: Set[str],
 ):
+    """Annotate a single frame with detections and tracking metadata."""
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         with redirect_stdout(open(os.devnull, "w")):
@@ -172,8 +167,8 @@ def main() -> None:
         cap.release()
         progress_bar.close()
         raise RuntimeError(
-            "Failed to initialise video writer. Ensure that the 'mp4v' codec is"
-            " available or install `ffmpeg`/`opencv-python` with codec support."
+            "Failed to initialise video writer. Ensure that the 'mp4v' codec is available"
+            " or install `ffmpeg`/`opencv-python` with codec support."
         )
 
     try:
