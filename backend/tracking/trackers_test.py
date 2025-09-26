@@ -7,6 +7,9 @@ from tqdm import tqdm
 import sys
 from contextlib import redirect_stdout, redirect_stderr
 
+# Default codec used for saving MP4 outputs. Declared as constant so it is easy to tweak
+MP4_FOURCC = cv2.VideoWriter_fourcc(*"mp4v")
+
 tracker = sv.ByteTrack()
 model = YOLO("yolo11m.pt")
 annotator = sv.LabelAnnotator(text_position=sv.Position.CENTER)
@@ -61,19 +64,50 @@ def main():
     print(f"Video info: {total_frames} frames at {fps:.2f} FPS")
     print(f"Estimated duration: {total_frames/fps:.2f} seconds")
     
-    # Create progress bar with position to avoid conflicts
-    progress_bar = tqdm(total=total_frames, desc="Processing video", unit="frames", 
+    # Ensure the data directory exists and remove stale outputs so that cv2 can overwrite
+    os.makedirs(os.path.dirname(target_path), exist_ok=True)
+    if os.path.exists(target_path):
+        backup_path = f"{os.path.splitext(target_path)[0]}_old.mp4"
+        os.replace(target_path, backup_path)
+        print(f"Existing output moved to: {backup_path}")
+
+    # Create progress bar with position to avoid interfering with stdout captures
+    progress_bar = tqdm(total=total_frames, desc="Processing video", unit="frames",
                        position=0, leave=True, file=sys.stdout)
-    
-    try:
-        sv.process_video(
-            source_path=video_path,
-            target_path=target_path,
-            callback=lambda frame, frame_idx: callback(frame, frame_idx, progress_bar),
-        )
-    finally:
+
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
         progress_bar.close()
-    
+        raise RuntimeError(f"Failed to open video: {video_path}")
+
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+
+    writer = cv2.VideoWriter(target_path, MP4_FOURCC, fps, (width, height))
+    if not writer.isOpened():
+        cap.release()
+        progress_bar.close()
+        raise RuntimeError(
+            "Failed to initialise video writer. Ensure that the 'mp4v' codec is "
+            "available or install `ffmpeg`/`opencv-python` with codec support."
+        )
+
+    try:
+        frame_index = 0
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
+
+            annotated_frame = callback(frame, frame_index, progress_bar)
+            writer.write(annotated_frame)
+            frame_index += 1
+    finally:
+        cap.release()
+        writer.release()
+        progress_bar.close()
+
     print(f"\nProcessing complete! Output saved to: {target_path}")
 
 if __name__ == "__main__":
