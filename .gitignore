@@ -77,3 +77,6 @@ data/
 
 # Databases
 databases/
+
+# Output frames
+output_frames/*
