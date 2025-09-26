@@ -20,7 +20,7 @@ import queue
 from database_integration import TrackingDatabase, RealTimeDataProcessor
 
 class IntegratedRealtimeTracker:
-    def __init__(self, model_path="../../models/yolo11.pt", show_labels=True, ignore_classes=None, 
+    def __init__(self, model_path="../../models/yolo11m.pt", show_labels=True, ignore_classes=None, 
                  enable_database=True, db_path="../../databases/tracking_data.db"):
         """
         Initialize the integrated real-time tracker
@@ -331,8 +331,8 @@ def parse_arguments():
     parser = argparse.ArgumentParser(description="Integrated real-time video tracking with database storage")
     parser.add_argument("video_path", type=str, help="Path to the video file", 
                        nargs='?', default="../../data/Cropped_Vid_720p.mp4")
-    parser.add_argument("--model", type=str, default="../../models/yolo11.pt",
-                       help="Path to YOLO model file (default: ../../models/yolo11.pt)")
+    parser.add_argument("--model", type=str, default="../../models/yolo11m.pt",
+                       help="Path to YOLO model file (default: ../../models/yolo11m.pt)")
     parser.add_argument("--show-labels", action="store_true", 
                        help="Show class labels on bounding boxes")
     parser.add_argument("--ignore-classes", nargs="*", default=[], 
