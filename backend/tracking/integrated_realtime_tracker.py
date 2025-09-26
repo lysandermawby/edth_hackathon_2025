@@ -21,6 +21,11 @@ import sys
 import platform
 from database_integration import TrackingDatabase, RealTimeDataProcessor
 
+# Get the directory where this script is located
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+# Script is in project_root/backend/tracking/, so go up 2 levels to reach project_root
+PROJECT_ROOT = os.path.dirname(os.path.dirname(SCRIPT_DIR))
+
 class IntegratedRealtimeTracker:
     def __init__(self, model_path="../../models/yolo11m.pt", show_labels=True, ignore_classes=None, 
                  enable_database=True, db_path="../../databases/tracking_data.db", headless=False):
@@ -28,13 +33,19 @@ class IntegratedRealtimeTracker:
         Initialize the integrated real-time tracker
         
         Args:
-            model_path (str): Path to YOLO model weights
+            model_path (str): Path to YOLO model weights (if None, uses default)
             show_labels (bool): Whether to show class labels
             ignore_classes (list): List of class names to ignore
             enable_database (bool): Whether to enable database storage
             db_path (str): Path to SQLite database file
             headless (bool): Whether to run in headless mode (no GUI)
         """
+        # Set default paths relative to project root
+        if model_path is None:
+            model_path = os.path.join(PROJECT_ROOT, "models", "yolo11m.pt")
+        if db_path is None:
+            db_path = os.path.join(PROJECT_ROOT, "databases", "tracking_data.db")
+        
         self.tracker = sv.ByteTrack()
         self.model = YOLO(model_path)
         self.annotator = sv.LabelAnnotator(text_position=sv.Position.CENTER)
@@ -406,11 +417,17 @@ class IntegratedRealtimeTracker:
 
 def parse_arguments():
     """Parse command line arguments"""
+    # Set default paths relative to project root
+    default_video = os.path.join(PROJECT_ROOT, "data", "Cropped_Vid_720p.mp4")
+    default_model = os.path.join(PROJECT_ROOT, "models", "yolo11m.pt")
+    default_db = os.path.join(PROJECT_ROOT, "databases", "tracking_data.db")
+    
     parser = argparse.ArgumentParser(description="Integrated real-time video tracking with database storage")
     parser.add_argument("video_path", type=str, help="Path to the video file", 
                        nargs='?', default="../../data/Individual_2.mp4")
-    parser.add_argument("--model", type=str, default="../../models/yolo11m.pt",
-                       help="Path to YOLO model file (default: ../../models/yolo11m.pt)")
+                       nargs='?', default=default_video)
+    parser.add_argument("--model", type=str, default=default_model,
+                       help=f"Path to YOLO model file (default: {default_model})")
     parser.add_argument("--show-labels", action="store_true", 
                        help="Show class labels on bounding boxes")
     parser.add_argument("--ignore-classes", nargs="*", default=[], 
@@ -419,12 +436,12 @@ def parse_arguments():
                        help="Don't save tracking data to file")
     parser.add_argument("--no-database", action="store_true", 
                        help="Disable database storage")
-    parser.add_argument("--db-path", type=str, default="../../databases/tracking_data.db", 
-                       help="Path to SQLite database file")
     parser.add_argument("--headless", action="store_true", 
                        help="Force headless mode (no GUI display)")
     parser.add_argument("--gui", action="store_true", 
                        help="Force GUI mode (override headless detection)")
+    parser.add_argument("--db-path", type=str, default=default_db, 
+                       help=f"Path to SQLite database file (default: {default_db})")
     return parser.parse_args()
 
 def main():
