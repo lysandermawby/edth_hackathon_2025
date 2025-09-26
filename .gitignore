@@ -92,3 +92,9 @@ CLAUDE.md
 GEMINI.md
 github_copilot.md
 .claude/
+
+# Databases
+databases/
+
+# Output frames
+output_frames/*

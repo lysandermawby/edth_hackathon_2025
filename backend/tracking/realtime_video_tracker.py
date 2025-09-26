@@ -18,16 +18,25 @@ from datetime import datetime
 import threading
 import queue
 
+# Get the directory where this script is located
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+# Script is in project_root/backend/tracking/, so go up 2 levels to reach project_root
+PROJECT_ROOT = os.path.dirname(os.path.dirname(SCRIPT_DIR))
+
 class RealtimeVideoTracker:
-    def __init__(self, model_path="yolo11m.pt", show_labels=True, ignore_classes=None):
+    def __init__(self, model_path=None, show_labels=True, ignore_classes=None):
         """
         Initialize the real-time video tracker
-        
+
         Args:
-            model_path (str): Path to YOLO model weights
+            model_path (str): Path to YOLO model weights (if None, uses default)
             show_labels (bool): Whether to show class labels
             ignore_classes (list): List of class names to ignore
         """
+        # Set default model path relative to project root
+        if model_path is None:
+            model_path = os.path.join(PROJECT_ROOT, "models", "yolo11m.pt")
+
         self.tracker = sv.ByteTrack()
         self.model = YOLO(model_path)
         self.annotator = sv.LabelAnnotator(text_position=sv.Position.CENTER)
@@ -280,9 +289,15 @@ class RealtimeVideoTracker:
 
 def parse_arguments():
     """Parse command line arguments"""
+    # Set default paths relative to project root
+    default_video = os.path.join(PROJECT_ROOT, "data", "Cropped_Vid_720p.mp4")
+    default_model = os.path.join(PROJECT_ROOT, "models", "yolo11m.pt")
+
     parser = argparse.ArgumentParser(description="Real-time video tracking with live display")
-    parser.add_argument("video_path", type=str, help="Path to the video file", 
-                       nargs='?', default="../../data/Cropped_Vid_720p.mp4")
+    parser.add_argument("video_path", type=str, help="Path to the video file",
+                       nargs='?', default=default_video)
+    parser.add_argument("--model", type=str, default=default_model,
+                       help=f"Path to YOLO model file (default: {default_model})")
     parser.add_argument("--show-labels", action="store_true", 
                        help="Show class labels on bounding boxes")
     parser.add_argument("--ignore-classes", nargs="*", default=[], 
@@ -296,7 +311,7 @@ def main():
     args = parse_arguments()
     
     tracker = RealtimeVideoTracker(
-        model_path="yolo11m.pt",
+        model_path=args.model,
         show_labels=args.show_labels,
         ignore_classes=args.ignore_classes
     )

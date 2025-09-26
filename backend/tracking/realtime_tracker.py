@@ -17,7 +17,7 @@ import numpy as np
 import time
 
 class RealtimeTracker:
-    def __init__(self, model_path="yolo11m.pt", camera_id=0):
+    def __init__(self, model_path="../../models/yolo11.pt", camera_id=0):
         """
         Initialize the real-time tracker
         
@@ -161,8 +161,8 @@ def main():
     """Main function to run the real-time tracker"""
     camera_id = 0
     
-    # Available models: yolo11n.pt, yolo11s.pt, yolo11m.pt, yolo11l.pt, yolo11x.pt
-    model_path = "yolo11m.pt"
+    # Available models: yolo11n.pt, yolo11s.pt, yolo11.pt, yolo11l.pt, yolo11x.pt
+    model_path = "../../models/yolo11.pt"
     
     tracker = RealtimeTracker(model_path=model_path, camera_id=camera_id)
     tracker.run()

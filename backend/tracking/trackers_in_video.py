@@ -19,22 +19,30 @@ import supervision as sv
 from tqdm import tqdm
 from ultralytics import YOLO
 
+# Get the directory where this script is located
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+# Script is in project_root/backend/tracking/, so go up 2 levels to reach project_root
+PROJECT_ROOT = os.path.dirname(os.path.dirname(SCRIPT_DIR))
+
 # Default codec for MP4 output files.
 MP4_FOURCC = cv2.VideoWriter_fourcc(*"mp4v")
 
 tracker = sv.ByteTrack()
-model = YOLO("yolo11m.pt")
+model = YOLO(os.path.join(PROJECT_ROOT, "models", "yolo11m.pt"))
 annotator = sv.LabelAnnotator(text_position=sv.Position.CENTER)
 box_annotator = sv.BoxAnnotator()
 
 
 def parse_arguments() -> argparse.Namespace:
+    # Set default paths relative to project root
+    default_video = os.path.join(PROJECT_ROOT, "data", "Cropped_Vid_720p.mp4")
+
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "video_path",
         type=str,
         nargs="?",
-        default="../../data/Cropped_Vid_720p.mp4",
+        default=default_video,
         help="Path to the input video file",
     )
     parser.add_argument(
