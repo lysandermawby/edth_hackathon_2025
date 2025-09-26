@@ -177,7 +177,7 @@ def save_metadata_to_file(metadata, output_file):
 def parse_arguments():
     """Parse arguments"""
     parser = argparse.ArgumentParser()
-    parser.add_argument("video_path", type=str, help="Path to the video file", nargs='?', default="../data/2025_09_17-15_02_07_MovingObjects_44.ts")
+    parser.add_argument("video_path", type=str, help="Path to the video file", nargs='?', default="../../data/2025_09_17-15_02_07_MovingObjects_44.ts")
     return parser.parse_args()
 
 def main():
