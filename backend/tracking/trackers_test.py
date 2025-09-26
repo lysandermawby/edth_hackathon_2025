@@ -44,6 +44,9 @@ def callback(frame, frame_idx, progress_bar):
     annotated_frame = trace_annotator.annotate(annotated_frame, detections)
     annotated_frame = annotator.annotate(annotated_frame, detections, labels=labels)
     
+    # Add trajectory traces (history lines)
+    annotated_frame = trace_annotator.annotate(annotated_frame, detections)
+    
     # Update progress bar
     progress_bar.update(1)
     
