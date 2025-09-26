@@ -1,6 +1,5 @@
 import cv2
 import supervision as sv
-from trackers import SORTTracker
 from ultralytics import YOLO
 import numpy as np
 import time
@@ -14,7 +13,7 @@ class RealtimeTracker:
             model_path (str): Path to YOLO model weights
             camera_id (int): Camera device ID (usually 0 for default camera)
         """
-        self.tracker = SORTTracker()
+        self.tracker = sv.ByteTrack()
         self.model = YOLO(model_path)
         self.annotator = sv.LabelAnnotator(text_position=sv.Position.CENTER)
         self.box_annotator = sv.BoxAnnotator()
@@ -124,7 +123,7 @@ class RealtimeTracker:
                         print(f"Frame saved as {filename}")
                 elif key == ord('r'):
                     # Reset tracker
-                    self.tracker = SORTTracker()
+                    self.tracker = sv.ByteTrack()
                     print("Tracker reset")
                 elif key == ord(' '):
                     # Toggle pause
