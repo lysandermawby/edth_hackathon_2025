@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import VideoCanvas from "./VideoCanvas";
+import RealtimeVideoCanvas from "./RealtimeVideoCanvas";
 import type { Session, FrameDetections, DetectionData } from "./types";
 
 function App() {
@@ -8,6 +9,7 @@ function App() {
   const [trackingData, setTrackingData] = useState<FrameDetections[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"recorded" | "realtime">("recorded");
 
   useEffect(() => {
     fetchSessions();
@@ -97,15 +99,55 @@ function App() {
           <p className="text-lg opacity-90">
             Real-time object tracking with video visualization
           </p>
+          
+          {/* Mode Selector */}
+          <div className="mt-6 flex justify-center">
+            <div className="bg-white/20 rounded-lg p-1 backdrop-blur-sm">
+              <button
+                onClick={() => setViewMode("recorded")}
+                className={`px-6 py-2 rounded-md transition-all ${
+                  viewMode === "recorded"
+                    ? "bg-white text-primary-600 shadow-md"
+                    : "text-white hover:bg-white/10"
+                }`}
+              >
+                📁 Recorded Sessions
+              </button>
+              <button
+                onClick={() => setViewMode("realtime")}
+                className={`px-6 py-2 rounded-md transition-all ${
+                  viewMode === "realtime"
+                    ? "bg-white text-primary-600 shadow-md"
+                    : "text-white hover:bg-white/10"
+                }`}
+              >
+                🔴 Live Detection
+              </button>
+            </div>
+          </div>
         </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Session Selection */}
-          <div className="lg:col-span-1">
-            <div className="bg-white rounded-xl p-6 shadow-xl">
-              <h2 className="text-xl font-semibold text-gray-700 mb-4">
-                Tracking Sessions
-              </h2>
+        {viewMode === "realtime" ? (
+          /* Real-time Detection Mode */
+          <div className="bg-white rounded-xl p-6 shadow-xl">
+            <h2 className="text-xl font-semibold text-gray-700 mb-6">
+              🔴 Live Object Detection & Tracking
+            </h2>
+            <RealtimeVideoCanvas
+              onDetectionData={(data) => {
+                console.log("Real-time detection data:", data);
+              }}
+            />
+          </div>
+        ) : (
+          /* Recorded Sessions Mode */
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Session Selection */}
+            <div className="lg:col-span-1">
+              <div className="bg-white rounded-xl p-6 shadow-xl">
+                <h2 className="text-xl font-semibold text-gray-700 mb-4">
+                  📁 Tracking Sessions
+                </h2>
 
               {error && (
                 <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
@@ -209,7 +251,7 @@ function App() {
               )}
             </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
