@@ -17,11 +17,12 @@ import json
 from datetime import datetime
 import threading
 import queue
+import sys
 from database_integration import TrackingDatabase, RealTimeDataProcessor
 
 class IntegratedRealtimeTracker:
     def __init__(self, model_path="../../models/yolo11m.pt", show_labels=True, ignore_classes=None, 
-                 enable_database=True, db_path="../../databases/tracking_data.db"):
+                 enable_database=True, db_path="../../databases/tracking_data.db", headless=False):
         """
         Initialize the integrated real-time tracker
         
@@ -31,6 +32,7 @@ class IntegratedRealtimeTracker:
             ignore_classes (list): List of class names to ignore
             enable_database (bool): Whether to enable database storage
             db_path (str): Path to SQLite database file
+            headless (bool): Whether to run in headless mode (no GUI)
         """
         self.tracker = sv.ByteTrack()
         self.model = YOLO(model_path)
@@ -38,6 +40,11 @@ class IntegratedRealtimeTracker:
         self.box_annotator = sv.BoxAnnotator()
         self.show_labels = show_labels
         self.ignore_classes = ignore_classes or []
+        self.headless = headless
+        
+        # Auto-detect headless mode if running in WSL2 or without display
+        if not self.headless:
+            self.headless = self._detect_headless_mode()
         
         # Database integration
         self.enable_database = enable_database
@@ -57,6 +64,33 @@ class IntegratedRealtimeTracker:
         self.frame_count = 0
         self.start_time = None
         self.session_id = None
+        
+        # Headless mode settings
+        if self.headless:
+            self.output_dir = "output_frames"
+            os.makedirs(self.output_dir, exist_ok=True)
+            print(f"Running in headless mode. Frames will be saved to: {self.output_dir}")
+    
+    def _detect_headless_mode(self):
+        """Detect if running in headless environment (WSL2, no display, etc.)"""
+        # Check for WSL2 with WSLg (Wayland support)
+        if os.environ.get('WAYLAND_DISPLAY'):
+            # WSLg is available, GUI should work
+            return False
+            
+        # Check for display environment
+        if not os.environ.get('DISPLAY') and not os.environ.get('WAYLAND_DISPLAY'):
+            return True
+            
+        # Try to create a test window to see if GUI is available
+        try:
+            test_img = np.zeros((100, 100, 3), dtype=np.uint8)
+            cv2.imshow('test', test_img)
+            cv2.waitKey(1)
+            cv2.destroyAllWindows()
+            return False
+        except:
+            return True
         
     def filter_detections(self, detections):
         """Filter out ignored classes"""
@@ -210,14 +244,21 @@ class IntegratedRealtimeTracker:
             self.data_processor.start_processing(video_path, fps)
             print(f"Database session started: {self.session_id}")
         
-        print("\n=== Integrated Real-time Video Tracking ===")
-        print("Press 'q' to quit")
-        print("Press 's' to save current frame")
-        print("Press 'r' to reset tracker")
-        print("Press SPACE to pause/resume")
-        print("Press 'd' to save tracking data")
-        print("Press 'i' to show database info")
-        print("==========================================\n")
+        if self.headless:
+            print("\n=== Integrated Real-time Video Tracking (Headless Mode) ===")
+            print("Processing video without GUI display")
+            print("Frames will be saved to output directory")
+            print("Press Ctrl+C to stop processing")
+            print("========================================================\n")
+        else:
+            print("\n=== Integrated Real-time Video Tracking ===")
+            print("Press 'q' to quit")
+            print("Press 's' to save current frame")
+            print("Press 'r' to reset tracker")
+            print("Press SPACE to pause/resume")
+            print("Press 'd' to save tracking data")
+            print("Press 'i' to show database info")
+            print("==========================================\n")
         
         self.start_time = time.time()
         paused = False
@@ -259,8 +300,18 @@ class IntegratedRealtimeTracker:
                     total_objects = len(tracking_data['objects'])
                     annotated_frame = self.add_info_overlay(annotated_frame, current_fps, total_objects, db_status)
                     
-                    # Display frame
-                    cv2.imshow('Integrated Real-time Video Tracking', annotated_frame)
+                    # Display or save frame based on mode
+                    if self.headless:
+                        # Save frame in headless mode
+                        frame_filename = os.path.join(self.output_dir, f"frame_{self.frame_count:06d}.jpg")
+                        cv2.imwrite(frame_filename, annotated_frame)
+                        
+                        # Save every 30th frame or frames with objects
+                        if self.frame_count % 30 == 0 or total_objects > 0:
+                            print(f"Frame {self.frame_count}: {total_objects} objects tracked - saved to {frame_filename}")
+                    else:
+                        # Display frame in GUI mode
+                        cv2.imshow('Integrated Real-time Video Tracking', annotated_frame)
                     
                     self.frame_count += 1
                     
@@ -271,40 +322,42 @@ class IntegratedRealtimeTracker:
                             print(f"  - {obj['class_name']} ID:{obj['tracker_id']} at ({obj['center']['x']:.1f}, {obj['center']['y']:.1f})")
                 
                 else:
-                    # Show paused message
-                    paused_frame = frame.copy() if 'frame' in locals() else np.zeros((height, width, 3), dtype=np.uint8)
-                    cv2.putText(paused_frame, "PAUSED - Press SPACE to resume", 
-                              (50, height//2), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
-                    cv2.imshow('Integrated Real-time Video Tracking', paused_frame)
+                    # Show paused message (only in GUI mode)
+                    if not self.headless:
+                        paused_frame = frame.copy() if 'frame' in locals() else np.zeros((height, width, 3), dtype=np.uint8)
+                        cv2.putText(paused_frame, "PAUSED - Press SPACE to resume", 
+                                  (50, height//2), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+                        cv2.imshow('Integrated Real-time Video Tracking', paused_frame)
                 
-                # Handle keyboard input
-                key = cv2.waitKey(1) & 0xFF
-                if key == ord('q'):
-                    break
-                elif key == ord('s'):
-                    # Save current frame
-                    if not paused and 'annotated_frame' in locals():
-                        filename = f"captured_frame_{int(time.time())}.jpg"
-                        cv2.imwrite(filename, annotated_frame)
-                        print(f"Frame saved as {filename}")
-                elif key == ord('r'):
-                    # Reset tracker
-                    self.tracker = sv.ByteTrack()
-                    print("Tracker reset")
-                elif key == ord('d'):
-                    # Save tracking data
-                    if save_data:
-                        output_file = f"{os.path.splitext(video_path)[0]}_tracking_data.json"
-                        self.save_tracking_data(output_file)
-                elif key == ord('i'):
-                    # Show database info
-                    if self.enable_database and self.session_id:
-                        summary = self.db.get_session_summary(self.session_id)
-                        print(f"Database Session Info: {summary}")
-                elif key == ord(' '):
-                    # Toggle pause
-                    paused = not paused
-                    print("Paused" if paused else "Resumed")
+                # Handle keyboard input (only in GUI mode)
+                if not self.headless:
+                    key = cv2.waitKey(1) & 0xFF
+                    if key == ord('q'):
+                        break
+                    elif key == ord('s'):
+                        # Save current frame
+                        if not paused and 'annotated_frame' in locals():
+                            filename = f"captured_frame_{int(time.time())}.jpg"
+                            cv2.imwrite(filename, annotated_frame)
+                            print(f"Frame saved as {filename}")
+                    elif key == ord('r'):
+                        # Reset tracker
+                        self.tracker = sv.ByteTrack()
+                        print("Tracker reset")
+                    elif key == ord('d'):
+                        # Save tracking data
+                        if save_data:
+                            output_file = f"{os.path.splitext(video_path)[0]}_tracking_data.json"
+                            self.save_tracking_data(output_file)
+                    elif key == ord('i'):
+                        # Show database info
+                        if self.enable_database and self.session_id:
+                            summary = self.db.get_session_summary(self.session_id)
+                            print(f"Database Session Info: {summary}")
+                    elif key == ord(' '):
+                        # Toggle pause
+                        paused = not paused
+                        print("Paused" if paused else "Resumed")
                 
         except KeyboardInterrupt:
             print("\nInterrupted by user")
@@ -312,7 +365,10 @@ class IntegratedRealtimeTracker:
             print(f"Error: {e}")
         finally:
             cap.release()
-            cv2.destroyAllWindows()
+            
+            # Only destroy windows in GUI mode
+            if not self.headless:
+                cv2.destroyAllWindows()
             
             # Stop database processing
             if self.enable_database and self.data_processor:
@@ -324,13 +380,16 @@ class IntegratedRealtimeTracker:
                 output_file = f"{os.path.splitext(video_path)[0]}_tracking_data.json"
                 self.save_tracking_data(output_file)
             
-            print("Video processing complete!")
+            if self.headless:
+                print(f"Headless processing complete! Check {self.output_dir} for saved frames.")
+            else:
+                print("Video processing complete!")
 
 def parse_arguments():
     """Parse command line arguments"""
     parser = argparse.ArgumentParser(description="Integrated real-time video tracking with database storage")
     parser.add_argument("video_path", type=str, help="Path to the video file", 
-                       nargs='?', default="../../data/Cropped_Vid_720p.mp4")
+                       nargs='?', default="../../data/Individual_2.mp4")
     parser.add_argument("--model", type=str, default="../../models/yolo11m.pt",
                        help="Path to YOLO model file (default: ../../models/yolo11m.pt)")
     parser.add_argument("--show-labels", action="store_true", 
@@ -343,6 +402,8 @@ def parse_arguments():
                        help="Disable database storage")
     parser.add_argument("--db-path", type=str, default="../../databases/tracking_data.db", 
                        help="Path to SQLite database file")
+    parser.add_argument("--headless", action="store_true", 
+                       help="Force headless mode (no GUI display)")
     return parser.parse_args()
 
 def main():
@@ -354,7 +415,8 @@ def main():
         show_labels=args.show_labels,
         ignore_classes=args.ignore_classes,
         enable_database=not args.no_database,
-        db_path=args.db_path
+        db_path=args.db_path,
+        headless=args.headless
     )
     
     tracker.run(args.video_path, save_data=not args.no_save)
