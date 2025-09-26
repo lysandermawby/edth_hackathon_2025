@@ -686,9 +686,22 @@ def process_video_with_reidentification(video_path: str, output_path: str = None
     # Set up output video if specified
     out = None
     if output_path:
+        # Ensure output directory exists
+        output_dir = os.path.dirname(output_path)
+        if output_dir and not os.path.exists(output_dir):
+            os.makedirs(output_dir, exist_ok=True)
+            print(f"📁 Created output directory: {output_dir}")
+        
+        # Use absolute path to avoid issues with working directory
+        abs_output_path = os.path.abspath(output_path)
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
-        print(f"💾 Output will be saved to: {output_path}")
+        out = cv2.VideoWriter(abs_output_path, fourcc, fps, (width, height))
+                
+        if out:
+            print(f"💾 Output will be saved to: {abs_output_path}")
+        else:
+            print(f"❌ Failed to initialize video writer for: {abs_output_path}")
+            out = None
     
     # Process frames
     frame_count = 0
@@ -708,7 +721,11 @@ def process_video_with_reidentification(video_path: str, output_path: str = None
             
             # Save frame if output specified
             if out:
-                out.write(annotated_frame)
+                try:
+                    out.write(annotated_frame)
+                except Exception as e:
+                    print(f"❌ Error writing frame {frame_count}: {e}")
+                    # Continue processing but note the error
             
             # Show preview or save preview frames
             if show_preview:
@@ -739,6 +756,13 @@ def process_video_with_reidentification(video_path: str, output_path: str = None
         cap.release()
         if out:
             out.release()
+            # Check if output file was created successfully
+            if os.path.exists(abs_output_path if output_path else ""):
+                file_size = os.path.getsize(abs_output_path if output_path else "")
+                print(f"✅ Video saved successfully: {abs_output_path if output_path else ''}")
+                print(f"   File size: {file_size / (1024*1024):.2f} MB")
+            else:
+                print(f"❌ Output video file not found: {abs_output_path if output_path else ''}")
         if show_preview and display_available:
             cv2.destroyAllWindows()
         elif show_preview and not display_available:
@@ -840,7 +864,7 @@ def process_video_for_specific_objects(video_path: str, target_objects: List[str
     print(f"\n✅ Ready to process {video_path} for objects: {target_objects}")
 
 # Example usage
-process_video_for_specific_objects("/home/alvaro/edth_hackathon_2025/data/Individual_2.mp4", ['person', 'car', 'truck'])
+process_video_for_specific_objects("/home/juanqui55/git/edth_hackathon_2025/data/Individual_2.mp4", ['person', 'car', 'truck'])
 
 # %%
 # =============================================================================
@@ -850,13 +874,13 @@ process_video_for_specific_objects("/home/alvaro/edth_hackathon_2025/data/Indivi
 # Test with a sample video
 if __name__ == "__main__":
     # You can run this cell to test the system
-    video_path = "/home/alvaro/edth_hackathon_2025/data/Individual_2.mp4"  # Adjust path as needed
+    video_path = "/home/juanqui55/git/edth_hackathon_2025/data/Individual_2.mp4"  # Adjust path as needed
     
     if os.path.exists(video_path):
         print("🚀 Starting universal reidentification experiment...")
         process_video_with_reidentification(
             video_path=video_path,
-            output_path="data/reidentification_output.mp4",
+            output_path="/home/juanqui55/git/edth_hackathon_2025/data/reidentification_output.mp4",
             max_frames=300,  # Process first 10 seconds for testing
             show_preview=True,  # Will automatically detect display and save frames if needed
             preview_save_interval=30  # Save preview frame every 30 frames (1 second at 30 FPS)
