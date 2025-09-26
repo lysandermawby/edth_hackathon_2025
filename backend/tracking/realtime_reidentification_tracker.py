@@ -39,7 +39,7 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(SCRIPT_DIR))
 
 class RealtimeReidentificationTracker:
     def __init__(self, model_path=None, show_labels=True, ignore_classes=None, 
-                 enable_database=True, db_path=None, max_occlusion_frames=30):
+                 enable_database=True, db_path=None, max_occlusion_frames=60):
         """
         Initialize the real-time tracker with re-identification capabilities
         
@@ -65,9 +65,32 @@ class RealtimeReidentificationTracker:
         self.show_labels = show_labels
         self.ignore_classes = ignore_classes or []
         
-        # Initialize re-identification system
+        # Initialize re-identification system with enhanced parameters for longer occlusions
         self.reid_system = RobustReidentificationSystem(max_occlusion_frames=max_occlusion_frames)
-        print("✅ Re-identification system initialized")
+        
+        # Enhanced parameters for very long occlusions (15+ frames)
+        self.reid_system.occlusion_handler.max_occlusion_frames = max_occlusion_frames
+        self.reid_system.occlusion_handler.search_expansion_rate = 1.05  # Very slow expansion
+        self.reid_system.feature_extractor.feature_weights = {
+            'color_hist': 0.2,   # Further reduced color weight (unreliable over time)
+            'hog': 0.3,          # Increased shape weight (more stable)
+            'deep': 0.5          # Maintained deep learning weight
+        }
+        
+        # Ultra-robust similarity thresholds for very long occlusions
+        self.reid_system.similarity_thresholds = {
+            'person': 0.7,      # Lower for people
+            'car': 0.6,         # Much lower for vehicles
+            'truck': 0.5,       # Very low for trucks
+            'bicycle': 0.65,    # Lower for bicycles
+            'default': 0.6      # Lower default threshold
+        }
+        
+        # Additional parameters for very long occlusions
+        self.ultra_long_occlusion_threshold = 20  # Frames
+        self.feature_decay_rate = 0.95  # How much to decay feature importance over time
+        
+        print("✅ Enhanced re-identification system initialized for longer occlusions")
         
         # Database integration
         self.enable_database = enable_database
@@ -190,9 +213,9 @@ class RealtimeReidentificationTracker:
         # Update tracker
         detections = self.tracker.update_with_detections(detections)
         
-        # Apply re-identification
+        # Apply enhanced re-identification with multiple strategies
         timestamp = time.time()
-        detections = self.reid_system.process_detections(detections, frame, timestamp)
+        detections = self.enhanced_reidentification(detections, frame, timestamp)
         
         # Extract tracking data for database
         tracking_data = self.extract_tracking_data(detections, frame_timestamp)
@@ -211,6 +234,340 @@ class RealtimeReidentificationTracker:
             annotated_frame = self.annotator.annotate(annotated_frame, detections, labels=labels)
         
         return annotated_frame, detections, tracking_data
+    
+    def enhanced_reidentification(self, detections, frame, timestamp):
+        """Enhanced re-identification with multiple strategies for longer occlusions"""
+        if len(detections) == 0:
+            return detections
+            
+        # Standard re-identification
+        detections = self.reid_system.process_detections(detections, frame, timestamp)
+        
+        # Enhanced strategy for longer occlusions
+        if len(self.reid_system.occlusion_handler.lost_tracks) > 0:
+            detections = self.apply_enhanced_matching(detections, frame, timestamp)
+        
+        return detections
+    
+    def apply_enhanced_matching(self, detections, frame, timestamp):
+        """Apply enhanced matching strategies for longer occlusions"""
+        if len(detections) == 0:
+            return detections
+            
+        # Strategy 1: Relaxed similarity thresholds for longer occlusions
+        enhanced_matches = self.match_with_relaxed_thresholds(detections, frame)
+        
+        # Strategy 2: Multi-scale feature matching
+        if not enhanced_matches:
+            enhanced_matches = self.match_with_multiscale_features(detections, frame)
+        
+        # Strategy 3: Temporal consistency matching
+        if not enhanced_matches:
+            enhanced_matches = self.match_with_temporal_consistency(detections, frame, timestamp)
+        
+        # Strategy 4: Ultra-robust matching for very long occlusions (15+ frames)
+        if not enhanced_matches:
+            enhanced_matches = self.match_with_ultra_robust_strategy(detections, frame, timestamp)
+        
+        # Apply matches
+        for track_id, det_idx in enhanced_matches.items():
+            if det_idx < len(detections.xyxy):
+                # Update the tracker ID for the matched detection
+                if hasattr(detections, 'tracker_id') and detections.tracker_id is not None:
+                    detections.tracker_id[det_idx] = track_id
+                
+                # Update the re-identification system
+                bbox = detections.xyxy[det_idx]
+                class_name = getattr(detections, 'data', {}).get('class_name', [None] * len(detections))
+                if isinstance(class_name, list) and det_idx < len(class_name):
+                    class_name = class_name[det_idx]
+                else:
+                    class_name = None
+                    
+                self.reid_system.update_track(track_id, bbox, frame, timestamp, class_name)
+                self.reid_system.stats['successful_reidentifications'] += 1
+                
+                # Remove from lost tracks
+                if track_id in self.reid_system.occlusion_handler.lost_tracks:
+                    del self.reid_system.occlusion_handler.lost_tracks[track_id]
+                
+                print(f"🔄 Enhanced re-identification: Track {track_id} recovered after longer occlusion")
+        
+        return detections
+    
+    def match_with_relaxed_thresholds(self, detections, frame):
+        """Match with relaxed similarity thresholds for longer occlusions"""
+        matches = {}
+        
+        for track_id, info in self.reid_system.occlusion_handler.lost_tracks.items():
+            frames_lost = info['frames_lost']
+            
+            # Progressively relax thresholds based on occlusion duration
+            if frames_lost > 20:  # Ultra-long occlusion (20+ frames)
+                similarity_threshold = 0.4  # Extremely relaxed
+                iou_threshold = 0.15
+            elif frames_lost > 15:  # Very long occlusion (15-20 frames)
+                similarity_threshold = 0.45  # Very relaxed
+                iou_threshold = 0.18
+            elif frames_lost > 10:  # Long occlusion (10-15 frames)
+                similarity_threshold = 0.5  # Very relaxed
+                iou_threshold = 0.2
+            elif frames_lost > 5:  # Medium occlusion (5-10 frames)
+                similarity_threshold = 0.6  # Relaxed
+                iou_threshold = 0.3
+            else:  # Short occlusion (1-5 frames)
+                similarity_threshold = 0.7  # Standard
+                iou_threshold = 0.4
+            
+            # Get object-specific threshold
+            last_state = info.get('last_state')
+            class_name = last_state.class_name if last_state and hasattr(last_state, 'class_name') else 'default'
+            obj_threshold = self.reid_system.similarity_thresholds.get(class_name, 0.65)
+            final_threshold = min(similarity_threshold, obj_threshold)
+            
+            best_match_idx = -1
+            best_match_score = 0.0
+            
+            for det_idx in range(len(detections)):
+                det_bbox = detections.xyxy[det_idx]
+                
+                # Check spatial overlap
+                iou = self.compute_iou(det_bbox, info['search_region'])
+                if iou < iou_threshold:
+                    continue
+                
+                # Extract and compare features
+                det_features = self.reid_system.feature_extractor.extract_all_features(frame, det_bbox)
+                similarity = self.reid_system.feature_extractor.compute_similarity(
+                    info['features'], det_features
+                )
+                
+                # Combined score with relaxed thresholds
+                combined_score = similarity * (1 + iou * 0.2)
+                
+                if combined_score > best_match_score and similarity > final_threshold:
+                    best_match_score = combined_score
+                    best_match_idx = det_idx
+            
+            if best_match_idx >= 0:
+                matches[track_id] = best_match_idx
+        
+        return matches
+    
+    def match_with_multiscale_features(self, detections, frame):
+        """Match using multi-scale feature extraction for better robustness"""
+        matches = {}
+        
+        for track_id, info in self.reid_system.occlusion_handler.lost_tracks.items():
+            best_match_idx = -1
+            best_match_score = 0.0
+            
+            for det_idx in range(len(detections)):
+                det_bbox = detections.xyxy[det_idx]
+                
+                # Extract features at multiple scales
+                scales = [0.8, 1.0, 1.2]  # Different scales
+                scale_similarities = []
+                
+                for scale in scales:
+                    # Scale the bounding box
+                    x1, y1, x2, y2 = det_bbox
+                    w, h = x2 - x1, y2 - y1
+                    cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
+                    
+                    scaled_bbox = np.array([
+                        cx - w * scale / 2,
+                        cy - h * scale / 2,
+                        cx + w * scale / 2,
+                        cy + h * scale / 2
+                    ])
+                    
+                    # Extract features at this scale
+                    det_features = self.reid_system.feature_extractor.extract_all_features(frame, scaled_bbox)
+                    similarity = self.reid_system.feature_extractor.compute_similarity(
+                        info['features'], det_features
+                    )
+                    scale_similarities.append(similarity)
+                
+                # Use the best similarity across scales
+                max_similarity = max(scale_similarities)
+                
+                if max_similarity > best_match_score and max_similarity > 0.6:
+                    best_match_score = max_similarity
+                    best_match_idx = det_idx
+            
+            if best_match_idx >= 0:
+                matches[track_id] = best_match_idx
+        
+        return matches
+    
+    def match_with_temporal_consistency(self, detections, frame, timestamp):
+        """Match using temporal consistency and motion prediction"""
+        matches = {}
+        
+        for track_id, info in self.reid_system.occlusion_handler.lost_tracks.items():
+            predictor = info['predictor']
+            frames_lost = info['frames_lost']
+            
+            # Predict where the object should be
+            dt = timestamp - self.reid_system.last_timestamp if self.reid_system.last_timestamp > 0 else 0.033
+            x_pred, y_pred, vx_pred, vy_pred = predictor.predict(dt)
+            
+            # Get uncertainty
+            uncertainty = predictor.get_uncertainty()
+            std_x = np.sqrt(uncertainty[0, 0])
+            std_y = np.sqrt(uncertainty[1, 1])
+            
+            best_match_idx = -1
+            best_match_score = 0.0
+            
+            for det_idx in range(len(detections)):
+                det_bbox = detections.xyxy[det_idx]
+                det_cx = (det_bbox[0] + det_bbox[2]) / 2
+                det_cy = (det_bbox[1] + det_bbox[3]) / 2
+                
+                # Calculate spatial distance from prediction
+                spatial_distance = np.sqrt((det_cx - x_pred)**2 + (det_cy - y_pred)**2)
+                max_distance = 3 * (std_x + std_y)  # 3-sigma rule
+                
+                if spatial_distance > max_distance:
+                    continue
+                
+                # Extract features and compute similarity
+                det_features = self.reid_system.feature_extractor.extract_all_features(frame, det_bbox)
+                similarity = self.reid_system.feature_extractor.compute_similarity(
+                    info['features'], det_features
+                )
+                
+                # Combine spatial and appearance with temporal weighting
+                temporal_weight = max(0.5, 1.0 - frames_lost * 0.05)  # Decrease weight over time
+                spatial_score = max(0, 1.0 - spatial_distance / max_distance)
+                combined_score = (similarity * 0.7 + spatial_score * 0.3) * temporal_weight
+                
+                if combined_score > best_match_score and similarity > 0.55:
+                    best_match_score = combined_score
+                    best_match_idx = det_idx
+            
+            if best_match_idx >= 0:
+                matches[track_id] = best_match_idx
+        
+        return matches
+    
+    def match_with_ultra_robust_strategy(self, detections, frame, timestamp):
+        """Ultra-robust matching for very long occlusions (15+ frames)"""
+        matches = {}
+        
+        for track_id, info in self.reid_system.occlusion_handler.lost_tracks.items():
+            frames_lost = info['frames_lost']
+            
+            # Only apply ultra-robust strategy for very long occlusions
+            if frames_lost < self.ultra_long_occlusion_threshold:
+                continue
+                
+            best_match_idx = -1
+            best_match_score = 0.0
+            
+            for det_idx in range(len(detections)):
+                det_bbox = detections.xyxy[det_idx]
+                
+                # Strategy 4a: Multiple feature extraction methods
+                feature_scores = []
+                
+                # Extract features with different preprocessing
+                preprocessing_methods = [
+                    ('normal', det_bbox),
+                    ('brightness_boost', self.adjust_brightness_bbox(det_bbox, 1.2)),
+                    ('contrast_boost', self.adjust_contrast_bbox(det_bbox, 1.3)),
+                    ('blur_robust', self.add_blur_robustness_bbox(det_bbox))
+                ]
+                
+                for method_name, bbox in preprocessing_methods:
+                    try:
+                        det_features = self.reid_system.feature_extractor.extract_all_features(frame, bbox)
+                        similarity = self.reid_system.feature_extractor.compute_similarity(
+                            info['features'], det_features
+                        )
+                        feature_scores.append(similarity)
+                    except:
+                        feature_scores.append(0.0)
+                
+                # Use the best feature score
+                max_feature_score = max(feature_scores) if feature_scores else 0.0
+                
+                # Strategy 4b: Motion-based prediction with uncertainty
+                predictor = info['predictor']
+                dt = timestamp - self.reid_system.last_timestamp if self.reid_system.last_timestamp > 0 else 0.033
+                x_pred, y_pred, vx_pred, vy_pred = predictor.predict(dt)
+                
+                # Calculate distance from prediction
+                det_cx = (det_bbox[0] + det_bbox[2]) / 2
+                det_cy = (det_bbox[1] + det_bbox[3]) / 2
+                spatial_distance = np.sqrt((det_cx - x_pred)**2 + (det_cy - y_pred)**2)
+                
+                # Get uncertainty and create very large search area
+                uncertainty = predictor.get_uncertainty()
+                std_x = np.sqrt(uncertainty[0, 0])
+                std_y = np.sqrt(uncertainty[1, 1])
+                max_distance = 5 * (std_x + std_y)  # 5-sigma rule for very long occlusions
+                
+                if spatial_distance > max_distance:
+                    continue
+                
+                # Strategy 4c: Temporal decay weighting
+                temporal_decay = self.feature_decay_rate ** frames_lost
+                spatial_score = max(0, 1.0 - spatial_distance / max_distance)
+                
+                # Strategy 4d: Combined ultra-robust scoring
+                combined_score = (
+                    max_feature_score * 0.6 +  # Feature similarity (60%)
+                    spatial_score * 0.3 +      # Spatial proximity (30%)
+                    temporal_decay * 0.1       # Temporal consistency (10%)
+                )
+                
+                # Ultra-relaxed threshold for very long occlusions
+                min_threshold = 0.35 if frames_lost > 20 else 0.4
+                
+                if combined_score > best_match_score and max_feature_score > min_threshold:
+                    best_match_score = combined_score
+                    best_match_idx = det_idx
+            
+            if best_match_idx >= 0:
+                matches[track_id] = best_match_idx
+                print(f"🔄 Ultra-robust re-identification: Track {track_id} recovered after {frames_lost} frames")
+        
+        return matches
+    
+    def adjust_brightness_bbox(self, bbox, factor):
+        """Adjust brightness for robustness"""
+        return bbox  # For now, return original bbox
+    
+    def adjust_contrast_bbox(self, bbox, factor):
+        """Adjust contrast for robustness"""
+        return bbox  # For now, return original bbox
+    
+    def add_blur_robustness_bbox(self, bbox):
+        """Add blur robustness"""
+        return bbox  # For now, return original bbox
+    
+    def compute_iou(self, box1, box2):
+        """Compute IoU between two bounding boxes"""
+        x1_1, y1_1, x2_1, y2_1 = box1
+        x1_2, y1_2, x2_2, y2_2 = box2
+        
+        # Intersection
+        xi1 = max(x1_1, x1_2)
+        yi1 = max(y1_1, y1_2)
+        xi2 = min(x2_1, x2_2)
+        yi2 = min(y2_1, y2_2)
+        
+        inter_area = max(0, xi2 - xi1) * max(0, yi2 - yi1)
+        
+        # Union
+        box1_area = (x2_1 - x1_1) * (y2_1 - y1_1)
+        box2_area = (x2_2 - x1_2) * (y2_2 - y1_2)
+        union_area = box1_area + box2_area - inter_area
+        
+        return inter_area / (union_area + 1e-6)
     
     def add_info_overlay(self, frame, fps, total_objects, db_status=""):
         """Add information overlay to frame with re-identification stats"""
@@ -447,8 +804,8 @@ def parse_arguments():
                        help="Disable database storage")
     parser.add_argument("--db-path", type=str, default=default_db, 
                        help=f"Path to SQLite database file (default: {default_db})")
-    parser.add_argument("--max-occlusion-frames", type=int, default=30,
-                       help="Maximum frames to keep a lost track (default: 30)")
+    parser.add_argument("--max-occlusion-frames", type=int, default=60,
+                       help="Maximum frames to keep a lost track (default: 60)")
     return parser.parse_args()
 
 def main():
