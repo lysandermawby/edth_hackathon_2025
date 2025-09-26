@@ -11,6 +11,7 @@ tracker = sv.ByteTrack()
 model = YOLO("yolo11m.pt")
 annotator = sv.LabelAnnotator(text_position=sv.Position.CENTER)
 box_annotator = sv.BoxAnnotator()
+trace_annotator = sv.TraceAnnotator(trace_length=30)
 
 def parse_arguments():
     """Parse arguments"""
@@ -41,6 +42,9 @@ def callback(frame, frame_idx, progress_bar):
     # Annotate frame with boxes and labels
     annotated_frame = box_annotator.annotate(frame, detections)
     annotated_frame = annotator.annotate(annotated_frame, detections, labels=labels)
+    
+    # Add trajectory traces (history lines)
+    annotated_frame = trace_annotator.annotate(annotated_frame, detections)
     
     # Update progress bar
     progress_bar.update(1)
