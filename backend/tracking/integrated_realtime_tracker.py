@@ -271,7 +271,7 @@ class IntegratedRealtimeTracker:
         # Start database session
         if self.enable_database:
             self.session_id = self.db.start_session(video_path, fps)
-            self.data_processor.start_processing(video_path, fps)
+            self.data_processor.start_processing(video_path, fps, self.session_id)
             print(f"Database session started: {self.session_id}")
         
         if self.headless:

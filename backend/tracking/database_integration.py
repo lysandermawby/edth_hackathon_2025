@@ -73,16 +73,39 @@ class TrackingDatabase:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
+        # Convert absolute path to relative path from project root
+        relative_path = self._get_relative_path(video_path)
+        
         cursor.execute('''
             INSERT INTO tracking_sessions (video_path, fps)
             VALUES (?, ?)
-        ''', (video_path, fps))
+        ''', (relative_path, fps))
         
         session_id = cursor.lastrowid
         conn.commit()
         conn.close()
         
         return session_id
+    
+    def _get_relative_path(self, video_path: str) -> str:
+        """Convert absolute path to relative path from project root"""
+        import os
+        
+        # Get the project root directory (assuming this file is in backend/tracking/)
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.dirname(os.path.dirname(current_dir))
+        
+        # Convert to absolute path first
+        abs_path = os.path.abspath(video_path)
+        
+        # Try to make it relative to project root
+        try:
+            relative_path = os.path.relpath(abs_path, project_root)
+            # Ensure it uses forward slashes for consistency
+            return relative_path.replace(os.sep, '/')
+        except ValueError:
+            # If we can't make it relative (different drives on Windows), return as-is
+            return video_path
     
     def end_session(self, session_id: int, total_frames: int):
         """End a tracking session"""
@@ -226,9 +249,15 @@ class RealTimeDataProcessor:
         self.running = False
         self.session_id = None
     
-    def start_processing(self, video_path: str, fps: float):
+    def start_processing(self, video_path: str, fps: float, session_id: int = None):
         """Start real-time data processing"""
-        self.session_id = self.db.start_session(video_path, fps)
+        if session_id is not None:
+            # Use existing session ID
+            self.session_id = session_id
+        else:
+            # Create new session (for backward compatibility)
+            self.session_id = self.db.start_session(video_path, fps)
+        
         self.running = True
         
         # Start processing thread
