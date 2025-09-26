@@ -112,6 +112,8 @@ const RealtimeVideoCanvas: React.FC<RealtimeVideoCanvasProps> = ({
   const [hoveredObject, setHoveredObject] = useState<TrackingObject | null>(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [videoInfo, setVideoInfo] = useState<{width: number, height: number, source: string} | null>(null);
+  const [selectedCameraId, setSelectedCameraId] = useState<number>(0);
+  const [availableCameras, setAvailableCameras] = useState<number[]>([0, 1, 2, 3]); // Default camera options
 
   const connectWebSocket = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
@@ -124,6 +126,8 @@ const RealtimeVideoCanvas: React.FC<RealtimeVideoCanvasProps> = ({
         console.log("Connected to real-time detection server");
         setConnected(true);
         setStatus("Connected");
+        // Request available cameras
+        ws.send(JSON.stringify({ command: "list_cameras" }));
       };
 
       ws.onmessage = (event) => {
@@ -155,6 +159,16 @@ const RealtimeVideoCanvas: React.FC<RealtimeVideoCanvasProps> = ({
               
             case "video_ended":
               setStatus("Video ended");
+              break;
+              
+            case "camera_list":
+              if (message.cameras && Array.isArray(message.cameras)) {
+                setAvailableCameras(message.cameras);
+                // If current selected camera is not available, switch to first available
+                if (!message.cameras.includes(selectedCameraId) && message.cameras.length > 0) {
+                  setSelectedCameraId(message.cameras[0]);
+                }
+              }
               break;
               
             case "pong":
@@ -239,10 +253,11 @@ const RealtimeVideoCanvas: React.FC<RealtimeVideoCanvasProps> = ({
     }
   }, []);
 
-  const startCamera = useCallback((cameraId: number = 0) => {
-    sendCommand("start_camera", { camera_id: cameraId });
-    setStatus("Starting camera...");
-  }, [sendCommand]);
+  const startCamera = useCallback((cameraId?: number) => {
+    const cameraToUse = cameraId !== undefined ? cameraId : selectedCameraId;
+    sendCommand("start_camera", { camera_id: cameraToUse });
+    setStatus(`Starting camera ${cameraToUse}...`);
+  }, [sendCommand, selectedCameraId]);
 
   const startVideo = useCallback((videoPath: string) => {
     sendCommand("start_video", { video_path: videoPath });
@@ -252,6 +267,13 @@ const RealtimeVideoCanvas: React.FC<RealtimeVideoCanvasProps> = ({
   const stopProcessing = useCallback(() => {
     sendCommand("stop");
     setStatus("Stopping...");
+  }, [sendCommand]);
+
+  const refreshCameras = useCallback(() => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      sendCommand("list_cameras");
+      setStatus("Detecting cameras...");
+    }
   }, [sendCommand]);
 
   const handleMouseMove = (event: React.MouseEvent<HTMLCanvasElement>) => {
@@ -328,13 +350,44 @@ const RealtimeVideoCanvas: React.FC<RealtimeVideoCanvasProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium mb-2">Camera Feed</label>
-            <button
-              onClick={() => startCamera(0)}
-              disabled={!connected}
-              className="w-full px-4 py-2 rounded bg-green-500 text-white disabled:bg-gray-400"
-            >
-              Start Webcam
-            </button>
+            <div className="space-y-2">
+              <div className="flex items-center space-x-2">
+                <label htmlFor="camera-select" className="text-xs text-gray-600 whitespace-nowrap">
+                  Camera:
+                </label>
+                <select
+                  id="camera-select"
+                  value={selectedCameraId}
+                  onChange={(e) => setSelectedCameraId(Number(e.target.value))}
+                  disabled={!connected}
+                  className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded disabled:bg-gray-100"
+                >
+                  {availableCameras.map((cameraId) => (
+                    <option key={cameraId} value={cameraId}>
+                      Camera {cameraId}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={refreshCameras}
+                  disabled={!connected}
+                  className="px-2 py-1 text-xs rounded border border-gray-300 hover:bg-gray-50 disabled:bg-gray-100"
+                  title="Detect available cameras"
+                >
+                  🔄
+                </button>
+              </div>
+              <div className="text-xs text-gray-500">
+                {availableCameras.length === 1 ? '1 camera detected' : `${availableCameras.length} cameras detected`}
+              </div>
+              <button
+                onClick={() => startCamera()}
+                disabled={!connected}
+                className="w-full px-4 py-2 rounded bg-green-500 text-white disabled:bg-gray-400"
+              >
+                📹 Start Camera {selectedCameraId}
+              </button>
+            </div>
           </div>
           
           <div>

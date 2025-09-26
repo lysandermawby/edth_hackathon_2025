@@ -246,13 +246,39 @@ class RealtimeDetectionServer:
         
         print("Video processing stopped")
         
+    def detect_available_cameras(self, max_cameras=10):
+        """Detect available cameras by trying to open them"""
+        available_cameras = []
+        
+        for camera_id in range(max_cameras):
+            cap = cv2.VideoCapture(camera_id)
+            if cap.isOpened():
+                # Test if we can actually read a frame
+                ret, _ = cap.read()
+                if ret:
+                    available_cameras.append(camera_id)
+                cap.release()
+            else:
+                # If we can't open this camera, assume no more cameras exist
+                break
+                
+        return available_cameras
+
     async def handle_client_message(self, websocket, message):
         """Handle incoming messages from clients"""
         try:
             data = json.loads(message)
             command = data.get('command')
             
-            if command == 'start_camera':
+            if command == 'list_cameras':
+                cameras = self.detect_available_cameras()
+                await websocket.send(json.dumps({
+                    "type": "camera_list",
+                    "cameras": cameras,
+                    "message": f"Found {len(cameras)} available cameras"
+                }))
+                
+            elif command == 'start_camera':
                 camera_id = data.get('camera_id', 0)
                 await self.start_video_processing(camera_id)
                 
