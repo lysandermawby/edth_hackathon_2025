@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Polyline, Polygon, useMap } from 'react-leaflet';
 import L, { LatLngExpression } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -31,6 +31,85 @@ interface EnhancedTelemetryPoint extends DroneMetadata {
   slant_range: number;
   footprint?: number[][];  // [lon, lat] polygon coordinates
 }
+
+interface VelocityState {
+  vx: number;
+  vy: number;
+  speed: number;
+  heading: number | null;
+}
+
+const EARTH_RADIUS = 6371000; // meters
+const VELOCITY_SMOOTHING = 0.6;
+const VELOCITY_ARROW_MIN_METERS = 15;
+const VELOCITY_ARROW_MAX_METERS = 120;
+
+const toRadians = (degrees: number) => (degrees * Math.PI) / 180;
+const toDegrees = (radians: number) => (radians * 180) / Math.PI;
+
+const haversineDistance = (
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+) => {
+  const dLat = toRadians(lat2 - lat1);
+  const dLon = toRadians(lon2 - lon1);
+  const rLat1 = toRadians(lat1);
+  const rLat2 = toRadians(lat2);
+
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.sin(dLon / 2) * Math.sin(dLon / 2) * Math.cos(rLat1) * Math.cos(rLat2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return EARTH_RADIUS * c;
+};
+
+const calculateBearing = (
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+) => {
+  const rLat1 = toRadians(lat1);
+  const rLat2 = toRadians(lat2);
+  const dLon = toRadians(lon2 - lon1);
+
+  const y = Math.sin(dLon) * Math.cos(rLat2);
+  const x =
+    Math.cos(rLat1) * Math.sin(rLat2) -
+    Math.sin(rLat1) * Math.cos(rLat2) * Math.cos(dLon);
+  const bearing = Math.atan2(y, x);
+  return (toDegrees(bearing) + 360) % 360;
+};
+
+const projectPoint = (
+  lat: number,
+  lon: number,
+  bearingDeg: number,
+  distanceMeters: number
+): [number, number] => {
+  const angularDistance = distanceMeters / EARTH_RADIUS;
+  const bearingRad = toRadians(bearingDeg);
+  const latRad = toRadians(lat);
+  const lonRad = toRadians(lon);
+
+  const newLat = Math.asin(
+    Math.sin(latRad) * Math.cos(angularDistance) +
+      Math.cos(latRad) * Math.sin(angularDistance) * Math.cos(bearingRad)
+  );
+  const newLon =
+    lonRad +
+    Math.atan2(
+      Math.sin(bearingRad) * Math.sin(angularDistance) * Math.cos(latRad),
+      Math.cos(angularDistance) - Math.sin(latRad) * Math.sin(newLat)
+    );
+
+  return [toDegrees(newLat), ((toDegrees(newLon) + 540) % 360) - 180];
+};
+
+const clamp = (value: number, min: number, max: number) =>
+  Math.min(Math.max(value, min), max);
 
 interface DroneMapViewerProps {
   metadata: DroneMetadata[];
@@ -72,22 +151,54 @@ const createDroneIcon = (yaw: number) => {
   });
 };
 
+const createVelocityIcon = (heading: number) => {
+  return L.divIcon({
+    className: 'velocity-marker',
+    html: `
+      <div style="
+        width: 16px;
+        height: 16px;
+        transform: rotate(${heading}deg);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      ">
+        <div style="
+          width: 0;
+          height: 0;
+          border-left: 6px solid transparent;
+          border-right: 6px solid transparent;
+          border-bottom: 12px solid #ff2e63;
+        "></div>
+      </div>
+    `,
+    iconSize: [16, 16],
+    iconAnchor: [8, 8],
+  });
+};
+
 // FOV cone component
 const FovCone: React.FC<{
   position: [number, number];
   yaw: number;
+  gimbal_azimuth?: number;
   hfov: number;
   range: number;
-}> = ({ position, yaw, hfov, range }) => {
+}> = ({ position, yaw, gimbal_azimuth = 0, hfov, range }) => {
   const map = useMap();
 
   useEffect(() => {
     const coneAngle = (hfov / 2) * (Math.PI / 180);
-    const yawRad = yaw * (Math.PI / 180);
+    
+    // Calculate actual camera pointing direction: drone yaw + gimbal azimuth
+    // Drone yaw is the direction the drone is facing
+    // Gimbal azimuth is the relative rotation of the camera from the drone's forward direction
+    const actualCameraHeading = yaw + gimbal_azimuth;
+    const cameraHeadingRad = actualCameraHeading * (Math.PI / 180);
 
-    // Calculate FOV cone vertices
-    const leftAngle = yawRad - coneAngle;
-    const rightAngle = yawRad + coneAngle;
+    // Calculate FOV cone vertices based on actual camera direction
+    const leftAngle = cameraHeadingRad - coneAngle;
+    const rightAngle = cameraHeadingRad + coneAngle;
 
     // Convert range to lat/lng offset (rough conversion)
     const latOffset = range * Math.cos(leftAngle) / 111000; // meters to degrees
@@ -120,7 +231,7 @@ const FovCone: React.FC<{
     return () => {
       map.removeLayer(fovPolygon);
     };
-  }, [map, position, yaw, hfov, range]);
+  }, [map, position, yaw, gimbal_azimuth, hfov, range]);
 
   return null;
 };
@@ -151,18 +262,105 @@ const DroneMapViewer: React.FC<DroneMapViewerProps> = ({
   const [showFOV, setShowFOV] = useState(true);
   const [showCameraFootprints, setShowCameraFootprints] = useState(showFootprints);
   const mapRef = useRef<L.Map | null>(null);
+  const prevVelocityRef = useRef<VelocityState>({ vx: 0, vy: 0, speed: 0, heading: null });
+  const [currentVelocity, setCurrentVelocity] = useState<VelocityState | null>(null);
 
   // Use enhanced telemetry if available, otherwise fall back to regular metadata
   const activeData = enhancedTelemetry || metadata;
 
   // Filter valid GPS coordinates
-  const validMetadata = activeData.filter(
-    entry => entry.latitude > -90 && entry.latitude < 90 &&
-             entry.longitude > -180 && entry.longitude < 180
+  const validMetadata = useMemo(
+    () =>
+      activeData.filter(
+        entry =>
+          entry.latitude > -90 &&
+          entry.latitude < 90 &&
+          entry.longitude > -180 &&
+          entry.longitude < 180
+      ),
+    [activeData]
   );
 
   // Get current metadata entry
   const currentMetadata = validMetadata[Math.min(currentFrame, validMetadata.length - 1)];
+
+  useEffect(() => {
+    prevVelocityRef.current = { vx: 0, vy: 0, speed: 0, heading: null };
+    setCurrentVelocity(null);
+  }, [enhancedTelemetry, metadata]);
+
+  useEffect(() => {
+    if (!currentMetadata || currentFrame <= 0 || validMetadata.length < 2) {
+      return;
+    }
+
+    const prevIndex = Math.max(0, Math.min(currentFrame - 1, validMetadata.length - 1));
+    const prevMetadata = validMetadata[prevIndex];
+
+    if (!prevMetadata || prevMetadata === currentMetadata) {
+      return;
+    }
+
+    const timeDeltaRaw = currentMetadata.timestamp - prevMetadata.timestamp;
+    if (!Number.isFinite(timeDeltaRaw) || timeDeltaRaw <= 0) {
+      return;
+    }
+
+    const timeDeltaSeconds = timeDeltaRaw > 1e3 ? timeDeltaRaw / 1_000_000 : timeDeltaRaw;
+    if (timeDeltaSeconds <= 0) {
+      return;
+    }
+
+    const distanceMeters = haversineDistance(
+      prevMetadata.latitude,
+      prevMetadata.longitude,
+      currentMetadata.latitude,
+      currentMetadata.longitude
+    );
+
+    if (!Number.isFinite(distanceMeters) || distanceMeters < 0.01) {
+      return;
+    }
+
+    const instantaneousSpeed = distanceMeters / timeDeltaSeconds;
+    const bearing = calculateBearing(
+      prevMetadata.latitude,
+      prevMetadata.longitude,
+      currentMetadata.latitude,
+      currentMetadata.longitude
+    );
+
+    const bearingRad = toRadians(bearing);
+    const vx = instantaneousSpeed * Math.sin(bearingRad);
+    const vy = instantaneousSpeed * Math.cos(bearingRad);
+
+    const prev = prevVelocityRef.current;
+    const smoothedVx = prev.heading === null
+      ? vx
+      : VELOCITY_SMOOTHING * vx + (1 - VELOCITY_SMOOTHING) * prev.vx;
+    const smoothedVy = prev.heading === null
+      ? vy
+      : VELOCITY_SMOOTHING * vy + (1 - VELOCITY_SMOOTHING) * prev.vy;
+
+    const smoothedSpeed = Math.hypot(smoothedVx, smoothedVy);
+    const smoothedHeading = smoothedSpeed > 0.05
+      ? (Math.atan2(smoothedVx, smoothedVy) * 180) / Math.PI
+      : null;
+
+    const normalizedHeading = smoothedHeading !== null
+      ? (smoothedHeading + 360) % 360
+      : null;
+
+    const nextVelocity: VelocityState = {
+      vx: smoothedVx,
+      vy: smoothedVy,
+      speed: smoothedSpeed,
+      heading: normalizedHeading,
+    };
+
+    prevVelocityRef.current = nextVelocity;
+    setCurrentVelocity(nextVelocity);
+  }, [currentFrame, currentMetadata, validMetadata]);
 
   // Calculate map center and bounds
   const getMapCenter = useCallback((): [number, number] => {
@@ -193,6 +391,15 @@ const DroneMapViewer: React.FC<DroneMapViewerProps> = ({
       </div>
     );
   }
+
+  const velocityArrow = currentVelocity && currentVelocity.heading !== null && currentVelocity.speed > 0.05
+    ? projectPoint(
+        currentMetadata.latitude,
+        currentMetadata.longitude,
+        currentVelocity.heading,
+        clamp(currentVelocity.speed * 2.5, VELOCITY_ARROW_MIN_METERS, VELOCITY_ARROW_MAX_METERS)
+      )
+    : null;
 
   return (
     <div className={`${className} relative`}>
@@ -258,6 +465,12 @@ const DroneMapViewer: React.FC<DroneMapViewerProps> = ({
           <div><strong>Alt:</strong> {currentMetadata.altitude.toFixed(1)}m</div>
           <div><strong>Yaw:</strong> {currentMetadata.yaw.toFixed(1)}°</div>
           <div><strong>Frame:</strong> {currentFrame}/{metadata.length}</div>
+          {currentVelocity && currentVelocity.heading !== null && (
+            <div>
+              <strong>Speed:</strong> {currentVelocity.speed.toFixed(1)} m/s
+              <span className="ml-2"><strong>Heading:</strong> {currentVelocity.heading.toFixed(0)}°</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -311,9 +524,29 @@ const DroneMapViewer: React.FC<DroneMapViewerProps> = ({
           <FovCone
             position={[currentMetadata.latitude, currentMetadata.longitude]}
             yaw={currentMetadata.yaw}
+            gimbal_azimuth={currentMetadata.gimbal_azimuth}
             hfov={currentMetadata.hfov}
             range={300} // 300 meters range
           />
+        )}
+
+        {/* Velocity Arrow */}
+        {velocityArrow && currentVelocity && currentVelocity.heading !== null && (
+          <>
+            <Polyline
+              positions={[
+                [currentMetadata.latitude, currentMetadata.longitude],
+                [velocityArrow[0], velocityArrow[1]]
+              ]}
+              color="#ff2e63"
+              weight={3}
+              opacity={0.9}
+            />
+            <Marker
+              position={[velocityArrow[0], velocityArrow[1]]}
+              icon={createVelocityIcon(currentVelocity.heading)}
+            />
+          </>
         )}
 
         {/* Camera Footprints (Enhanced Telemetry) */}
