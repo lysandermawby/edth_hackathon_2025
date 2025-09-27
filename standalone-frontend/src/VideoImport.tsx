@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import {
   HiUpload,
   HiVideoCamera,
@@ -156,19 +157,21 @@ const VideoImport: React.FC<VideoImportProps> = ({
 
   const canImport = selectedVideo && !importingFiles;
 
-  return (
-    <div 
-      className="z-50"
+  const modalContent = (
+    <div
       style={{
         position: "fixed",
         top: 0,
         left: 0,
+        right: 0,
+        bottom: 0,
         width: "100vw",
         height: "100vh",
         backgroundColor: "rgba(0, 0, 0, 0.8)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
+        zIndex: 9999,
         margin: 0,
         padding: 0,
       }}
@@ -198,7 +201,10 @@ const VideoImport: React.FC<VideoImportProps> = ({
           </div>
         </div>
 
-        <div className="p-6 flex-1 flex flex-col" style={{ height: "calc(100% - 80px)" }}>
+        <div
+          className="p-6 flex-1 flex flex-col"
+          style={{ height: "calc(100% - 80px)" }}
+        >
           {/* Status Messages */}
           {importMessage && (
             <div className="mb-4 p-3 bg-neon-green/10 border border-neon-green text-neon-green text-sm">
@@ -300,7 +306,10 @@ const VideoImport: React.FC<VideoImportProps> = ({
                       ({availableFiles.videos.length})
                     </span>
                   </div>
-                  <div className="overflow-y-auto space-y-2" style={{ height: "350px" }}>
+                  <div
+                    className="overflow-y-auto space-y-2"
+                    style={{ height: "350px" }}
+                  >
                     {availableFiles.videos.length === 0 ? (
                       <div className="text-center py-8 text-cyber-muted">
                         <HiFolder className="text-4xl mb-2 mx-auto opacity-50" />
@@ -362,7 +371,10 @@ const VideoImport: React.FC<VideoImportProps> = ({
                       ({availableFiles.csvFiles.length}) OPTIONAL
                     </span>
                   </div>
-                  <div className="overflow-y-auto space-y-2" style={{ height: "350px" }}>
+                  <div
+                    className="overflow-y-auto space-y-2"
+                    style={{ height: "350px" }}
+                  >
                     {/* None Selected Option */}
                     <div
                       className={`cyber-card border cursor-pointer transition-colors ${
@@ -483,6 +495,8 @@ const VideoImport: React.FC<VideoImportProps> = ({
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 };
 
 export default VideoImport;

@@ -156,7 +156,7 @@ def main() -> None:
         max_occlusion_frames=60  # Enhanced re-identification parameter
     )
 
-    tracker.run(video_path, session_id=args.session_id, reset_frame_count=not args.keep_existing)
+    tracker.run(video_path, save_data=True)
 
 
 if __name__ == "__main__":
