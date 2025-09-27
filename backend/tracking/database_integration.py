@@ -54,9 +54,46 @@ class TrackingDatabase:
                 bbox_y2 REAL,
                 center_x REAL,
                 center_y REAL,
+                depth_mean REAL,
+                depth_median REAL,
+                depth_min REAL,
+                depth_max REAL,
+                depth_std REAL,
+                depth_valid_pixels INTEGER,
+                depth_total_pixels INTEGER,
                 FOREIGN KEY (session_id) REFERENCES tracking_sessions (session_id)
             )
         ''')
+
+        # Add depth columns to existing tables if they don't exist
+        try:
+            cursor.execute('ALTER TABLE tracked_objects ADD COLUMN depth_mean REAL')
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+        try:
+            cursor.execute('ALTER TABLE tracked_objects ADD COLUMN depth_median REAL')
+        except sqlite3.OperationalError:
+            pass
+        try:
+            cursor.execute('ALTER TABLE tracked_objects ADD COLUMN depth_min REAL')
+        except sqlite3.OperationalError:
+            pass
+        try:
+            cursor.execute('ALTER TABLE tracked_objects ADD COLUMN depth_max REAL')
+        except sqlite3.OperationalError:
+            pass
+        try:
+            cursor.execute('ALTER TABLE tracked_objects ADD COLUMN depth_std REAL')
+        except sqlite3.OperationalError:
+            pass
+        try:
+            cursor.execute('ALTER TABLE tracked_objects ADD COLUMN depth_valid_pixels INTEGER')
+        except sqlite3.OperationalError:
+            pass
+        try:
+            cursor.execute('ALTER TABLE tracked_objects ADD COLUMN depth_total_pixels INTEGER')
+        except sqlite3.OperationalError:
+            pass
         
         # Create indexes for faster queries
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_session_frame ON tracked_objects (session_id, frame_number)')
@@ -125,16 +162,30 @@ class TrackingDatabase:
         cursor = conn.cursor()
         
         for obj in frame_data['objects']:
+            # Extract depth information if available
+            depth_data = obj.get('depth', {})
+            depth_mean = depth_data.get('mean_depth')
+            depth_median = depth_data.get('median_depth')
+            depth_min = depth_data.get('min_depth')
+            depth_max = depth_data.get('max_depth')
+            depth_std = depth_data.get('std_depth')
+            depth_valid_pixels = depth_data.get('valid_pixels')
+            depth_total_pixels = depth_data.get('total_pixels')
+
             cursor.execute('''
                 INSERT INTO tracked_objects (
                     session_id, frame_number, timestamp, tracker_id, class_id, class_name,
-                    confidence, bbox_x1, bbox_y1, bbox_x2, bbox_y2, center_x, center_y
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    confidence, bbox_x1, bbox_y1, bbox_x2, bbox_y2, center_x, center_y,
+                    depth_mean, depth_median, depth_min, depth_max, depth_std,
+                    depth_valid_pixels, depth_total_pixels
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 session_id, frame_data['frame_number'], frame_data['timestamp'],
                 obj['tracker_id'], obj['class_id'], obj['class_name'], obj['confidence'],
                 obj['bbox']['x1'], obj['bbox']['y1'], obj['bbox']['x2'], obj['bbox']['y2'],
-                obj['center']['x'], obj['center']['y']
+                obj['center']['x'], obj['center']['y'],
+                depth_mean, depth_median, depth_min, depth_max, depth_std,
+                depth_valid_pixels, depth_total_pixels
             ))
         
         conn.commit()

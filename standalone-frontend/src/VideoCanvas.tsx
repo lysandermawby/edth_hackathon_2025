@@ -131,6 +131,13 @@ const drawDetections = (
       labelParts.push(`${Math.round(obj.confidence * 100)}%`);
     }
 
+    // Add depth information if available
+    const depthParts: string[] = [];
+    if (obj.depth && obj.depth.mean_depth > 0) {
+      depthParts.push(`${obj.depth.mean_depth.toFixed(1)}m`);
+    }
+
+    // Draw main label
     if (labelParts.length > 0) {
       const label = labelParts.join(" ");
       ctx.font = "16px Inter, system-ui, sans-serif";
@@ -148,6 +155,31 @@ const drawDetections = (
 
       ctx.fillStyle = "#0A0A0A";
       ctx.fillText(label, labelX + padding, boxY + textHeight - 6);
+    }
+
+    // Draw depth label below the main label
+    if (depthParts.length > 0) {
+      const depthLabel = depthParts.join(" ");
+      ctx.font = "14px Inter, system-ui, sans-serif";
+      const depthMetrics = ctx.measureText(depthLabel);
+      const depthPadding = 6;
+      const depthTextHeight = 18;
+      const depthLabelWidth = depthMetrics.width + depthPadding * 2;
+      const depthLabelX = x;
+
+      // Position depth label below main label or below bounding box
+      const mainLabelHeight = labelParts.length > 0 ? 20 : 0;
+      const depthLabelY = y - mainLabelHeight - depthTextHeight - 8;
+      const drawDepthAbove = depthLabelY > 0;
+      const depthBoxY = drawDepthAbove ? depthLabelY : y + height + mainLabelHeight + 8;
+
+      // Use a semi-transparent dark background for depth info
+      ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
+      ctx.fillRect(depthLabelX, depthBoxY, depthLabelWidth, depthTextHeight);
+
+      // Use cyan color for depth text to make it stand out
+      ctx.fillStyle = "#00FFFF";
+      ctx.fillText(depthLabel, depthLabelX + depthPadding, depthBoxY + depthTextHeight - 4);
     }
   });
 };

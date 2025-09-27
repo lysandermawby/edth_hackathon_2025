@@ -55,4 +55,11 @@ export interface DetectionData {
   bbox_y2: number;
   center_x: number;
   center_y: number;
+  depth_mean?: number;
+  depth_median?: number;
+  depth_min?: number;
+  depth_max?: number;
+  depth_std?: number;
+  depth_valid_pixels?: number;
+  depth_total_pixels?: number;
 }

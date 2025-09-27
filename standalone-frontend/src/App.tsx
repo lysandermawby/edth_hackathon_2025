@@ -51,6 +51,21 @@ function App() {
         }
 
         const frame = frameMap.get(detection.frame_number)!;
+
+        // Create depth info if available in database
+        let depthInfo = undefined;
+        if (detection.depth_mean !== null && detection.depth_mean !== undefined && detection.depth_mean > 0) {
+          depthInfo = {
+            mean_depth: detection.depth_mean,
+            median_depth: detection.depth_median || 0,
+            min_depth: detection.depth_min || 0,
+            max_depth: detection.depth_max || 0,
+            std_depth: detection.depth_std || 0,
+            valid_pixels: detection.depth_valid_pixels || 0,
+            total_pixels: detection.depth_total_pixels || 0,
+          };
+        }
+
         frame.objects.push({
           tracker_id: detection.tracker_id || undefined,
           class_id: detection.class_id,
@@ -66,6 +81,7 @@ function App() {
             x: detection.center_x,
             y: detection.center_y,
           },
+          depth: depthInfo,
         });
       });
 
