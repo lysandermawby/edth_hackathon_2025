@@ -10,6 +10,7 @@ import {
 } from "react-icons/hi";
 import VideoCanvas from "./VideoCanvas";
 import DroneMapViewer from "./DroneMapViewer";
+import DroneStatusDisplay from "./DroneStatusDisplay";
 import type {
   FrameDetections,
   DroneMetadata,
@@ -20,16 +21,12 @@ interface VideoMapViewerProps {
   session: SessionWithMetadata;
   trackingData: FrameDetections[];
   videoSrc: string;
-  onVideoTimeUpdate?: (time: number) => void;
-  onVideoDurationUpdate?: (duration: number) => void;
 }
 
 const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
   session,
   trackingData,
   videoSrc,
-  onVideoTimeUpdate,
-  onVideoDurationUpdate,
 }) => {
   const [currentVideoTime, setCurrentVideoTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -108,22 +105,14 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
   }, [currentVideoTime, isMapSynced, getCurrentMetadataIndex, actualMetadata]);
 
   // Handle video time updates
-  const handleVideoTimeUpdate = useCallback(
-    (time: number) => {
-      setCurrentVideoTime(time);
-      onVideoTimeUpdate?.(time);
-    },
-    [onVideoTimeUpdate]
-  );
+  const handleVideoTimeUpdate = useCallback((time: number) => {
+    setCurrentVideoTime(time);
+  }, []);
 
   // Handle duration loaded
-  const handleDurationLoad = useCallback(
-    (dur: number) => {
-      setDuration(dur);
-      onVideoDurationUpdate?.(dur);
-    },
-    [onVideoDurationUpdate]
-  );
+  const handleDurationLoad = useCallback((dur: number) => {
+    setDuration(dur);
+  }, []);
 
   const formatTime = (time: number): string => {
     if (!Number.isFinite(time)) return "0:00";
@@ -139,86 +128,102 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Sync Control Panel */}
-      <div className="card">
-        <div className="card-header">
-          <div className="flex items-center gap-3">
-            <div className="w-6 h-6 bg-secondary-600 rounded flex items-center justify-center">
-              <HiCog className="text-white text-sm" />
+      {/* Sync Control & Telemetry Panel */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        {/* Sync Controls */}
+        <div className="xl:col-span-1">
+          <div className="card">
+            <div className="card-header">
+              <div className="flex items-center gap-3">
+                <div className="w-6 h-6 bg-secondary-600 rounded flex items-center justify-center">
+                  <HiCog className="text-white text-sm" />
+                </div>
+                <h4 className="font-semibold text-tactical-text">
+                  Synchronization Controls
+                </h4>
+              </div>
             </div>
-            <h4 className="font-semibold text-tactical-text">
-              Synchronization Controls
-            </h4>
+            <div className="p-4">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <div className="flex items-center gap-6">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      id="sync-map"
+                      checked={isMapSynced}
+                      onChange={(e) => setIsMapSynced(e.target.checked)}
+                      className="w-4 h-4 text-primary-600 rounded focus:ring-primary-500"
+                    />
+                    <label
+                      htmlFor="sync-map"
+                      className="text-sm font-medium text-tactical-text flex items-center gap-2"
+                    >
+                      <HiLink className="w-4 h-4" />
+                      Auto-sync with video
+                    </label>
+                  </div>
+
+                  {!isMapSynced && (
+                    <div className="flex items-center gap-3">
+                      <label className="text-sm text-tactical-muted">
+                        Manual frame:
+                      </label>
+                      <input
+                        type="range"
+                        min={0}
+                        max={Math.max(actualMetadata.length - 1, 0)}
+                        value={mapFrame}
+                        onChange={(e) => setMapFrame(Number(e.target.value))}
+                        className="w-32 h-2 bg-neutral-200 rounded-lg appearance-none cursor-pointer"
+                      />
+                      <span className="text-sm font-mono text-neutral-700 min-w-[60px] px-2 py-1 bg-neutral-100 rounded">
+                        {mapFrame}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="text-sm text-tactical-muted space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">Video:</span>
+                    <span className="font-mono">
+                      {formatTime(currentVideoTime)} / {formatTime(duration)}
+                    </span>
+                    <span className="px-2 py-1 bg-primary-100 text-primary-700 rounded text-xs">
+                      {duration > 0
+                        ? ((currentVideoTime / duration) * 100).toFixed(1)
+                        : 0}
+                      %
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">Map:</span>
+                    <span className="font-mono">
+                      {mapFrame}/{actualMetadata.length - 1}
+                    </span>
+                    {actualMetadata.length > 0 &&
+                      mapFrame < actualMetadata.length && (
+                        <span className="px-2 py-1 bg-secondary-100 text-secondary-700 rounded text-xs">
+                          GPS#{mapFrame} @{" "}
+                          {actualMetadata[mapFrame].timestamp.toFixed(2)}s
+                        </span>
+                      )}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-        <div className="p-4">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  id="sync-map"
-                  checked={isMapSynced}
-                  onChange={(e) => setIsMapSynced(e.target.checked)}
-                  className="w-4 h-4 text-primary-600 rounded focus:ring-primary-500"
-                />
-                <label
-                  htmlFor="sync-map"
-                  className="text-sm font-medium text-tactical-text flex items-center gap-2"
-                >
-                  <HiLink className="w-4 h-4" />
-                  Auto-sync with video
-                </label>
-              </div>
 
-              {!isMapSynced && (
-                <div className="flex items-center gap-3">
-                  <label className="text-sm text-tactical-muted">
-                    Manual frame:
-                  </label>
-                  <input
-                    type="range"
-                    min={0}
-                    max={Math.max(actualMetadata.length - 1, 0)}
-                    value={mapFrame}
-                    onChange={(e) => setMapFrame(Number(e.target.value))}
-                    className="w-32 h-2 bg-neutral-200 rounded-lg appearance-none cursor-pointer"
-                  />
-                  <span className="text-sm font-mono text-neutral-700 min-w-[60px] px-2 py-1 bg-neutral-100 rounded">
-                    {mapFrame}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            <div className="text-sm text-tactical-muted space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="font-medium">Video:</span>
-                <span className="font-mono">
-                  {formatTime(currentVideoTime)} / {formatTime(duration)}
-                </span>
-                <span className="px-2 py-1 bg-primary-100 text-primary-700 rounded text-xs">
-                  {duration > 0
-                    ? ((currentVideoTime / duration) * 100).toFixed(1)
-                    : 0}
-                  %
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="font-medium">Map:</span>
-                <span className="font-mono">
-                  {mapFrame}/{actualMetadata.length - 1}
-                </span>
-                {actualMetadata.length > 0 &&
-                  mapFrame < actualMetadata.length && (
-                    <span className="px-2 py-1 bg-secondary-100 text-secondary-700 rounded text-xs">
-                      GPS#{mapFrame} @{" "}
-                      {actualMetadata[mapFrame].timestamp.toFixed(2)}s
-                    </span>
-                  )}
-              </div>
-            </div>
-          </div>
+        {/* Drone Telemetry */}
+        <div className="xl:col-span-2">
+          <DroneStatusDisplay
+            metadata={
+              hasRealGpsData && mapFrame < actualMetadata.length
+                ? actualMetadata[mapFrame]
+                : undefined
+            }
+          />
         </div>
       </div>
 
@@ -380,88 +385,6 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
         </div>
       </div>
 
-      {/* Flight Telemetry Display */}
-      {hasRealGpsData && (
-        <div className="card">
-          <div className="card-header">
-            <div className="flex items-center gap-3">
-              <div className="w-6 h-6 bg-warning-600 rounded flex items-center justify-center">
-                <HiChartBar className="text-white text-sm" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-tactical-text">
-                  Live Telemetry
-                </h3>
-                <p className="text-xs text-tactical-muted">
-                  Frame {mapFrame} telemetry data
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="card-body">
-            {mapFrame < actualMetadata.length ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-                <div className="metric-display bg-gradient-to-br from-primary-50 to-primary-100 border-primary-200">
-                  <div className="text-xs text-primary-600 font-medium">
-                    Latitude
-                  </div>
-                  <div className="text-lg font-mono font-bold text-primary-800">
-                    {actualMetadata[mapFrame].latitude.toFixed(6)}°
-                  </div>
-                </div>
-                <div className="metric-display bg-gradient-to-br from-success-50 to-success-100 border-success-200">
-                  <div className="text-xs text-success-600 font-medium">
-                    Longitude
-                  </div>
-                  <div className="text-lg font-mono font-bold text-success-800">
-                    {actualMetadata[mapFrame].longitude.toFixed(6)}°
-                  </div>
-                </div>
-                <div className="metric-display bg-gradient-to-br from-secondary-50 to-secondary-100 border-secondary-200">
-                  <div className="text-xs text-secondary-600 font-medium">
-                    Altitude
-                  </div>
-                  <div className="text-lg font-mono font-bold text-secondary-800">
-                    {actualMetadata[mapFrame].altitude.toFixed(1)}m
-                  </div>
-                </div>
-                <div className="metric-display bg-gradient-to-br from-warning-50 to-warning-100 border-warning-200">
-                  <div className="text-xs text-warning-600 font-medium">
-                    Yaw
-                  </div>
-                  <div className="text-lg font-mono font-bold text-warning-800">
-                    {actualMetadata[mapFrame].yaw.toFixed(1)}°
-                  </div>
-                </div>
-                <div className="metric-display bg-gradient-to-br from-accent-50 to-accent-100 border-accent-200">
-                  <div className="text-xs text-accent-600 font-medium">
-                    Pitch
-                  </div>
-                  <div className="text-lg font-mono font-bold text-accent-800">
-                    {actualMetadata[mapFrame].pitch.toFixed(1)}°
-                  </div>
-                </div>
-                <div className="metric-display bg-gradient-to-br from-neutral-50 to-neutral-100 border-neutral-200">
-                  <div className="text-xs text-tactical-muted font-medium">
-                    Roll
-                  </div>
-                  <div className="text-lg font-mono font-bold text-neutral-800">
-                    {actualMetadata[mapFrame].roll.toFixed(1)}°
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="text-center py-8 text-tactical-muted">
-                <HiWifi className="text-neutral-400 text-2xl mb-2 mx-auto" />
-                <div className="font-medium">No telemetry data</div>
-                <div className="text-sm">
-                  No GPS data available for current frame
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 };

@@ -15,13 +15,11 @@ import { MdGpsFixed, MdAnalytics } from "react-icons/md";
 import { RiLiveLine, RiDashboardFill, RiFileListLine } from "react-icons/ri";
 import VideoMapViewer from "./VideoMapViewer";
 import RealtimeVideoCanvas from "./RealtimeVideoCanvas";
-import DroneStatusDisplay from "./DroneStatusDisplay";
 import type {
   Session,
   FrameDetections,
   DetectionData,
   SessionWithMetadata,
-  DroneMetadata,
 } from "./types";
 
 const convertDetectionsToFrames = (
@@ -99,29 +97,6 @@ function App() {
   );
   const [generationError, setGenerationError] = useState<string | null>(null);
 
-  // 3D Visualization sync state
-  const [currentVideoTime, setCurrentVideoTime] = useState(0);
-  const [videoDuration, setVideoDuration] = useState(0);
-  const [currentMetadata, setCurrentMetadata] = useState<
-    DroneMetadata | undefined
-  >(undefined);
-
-  // Calculate current metadata based on video time
-  useEffect(() => {
-    if (selectedSession?.metadata && videoDuration > 0) {
-      const videoProgress = Math.min(currentVideoTime / videoDuration, 1);
-      const metadataIndex = Math.floor(
-        videoProgress * (selectedSession.metadata.length - 1)
-      );
-      const index = Math.max(
-        0,
-        Math.min(metadataIndex, selectedSession.metadata.length - 1)
-      );
-      setCurrentMetadata(selectedSession.metadata[index]);
-    } else {
-      setCurrentMetadata(undefined);
-    }
-  }, [currentVideoTime, videoDuration, selectedSession?.metadata]);
 
   useEffect(() => {
     fetchSessions();
@@ -549,11 +524,6 @@ function App() {
                 </div>
               </div>
 
-              {/* Drone Status Display */}
-              <DroneStatusDisplay
-                metadata={currentMetadata}
-                className="mt-6"
-              />
             </div>
 
             {/* Main Content Area - Map Hero */}
@@ -691,8 +661,6 @@ function App() {
                     session={selectedSession}
                     trackingData={trackingData}
                     videoSrc={getVideoUrl(selectedSession)}
-                    onVideoTimeUpdate={setCurrentVideoTime}
-                    onVideoDurationUpdate={setVideoDuration}
                   />
                 </div>
               )}
