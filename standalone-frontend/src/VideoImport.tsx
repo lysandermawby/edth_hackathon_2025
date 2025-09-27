@@ -1,5 +1,14 @@
 import React, { useState, useEffect } from "react";
-import { HiUpload, HiVideoCamera, HiRefresh, HiX, HiPlay, HiFolder, HiDocumentText, HiCheck } from "react-icons/hi";
+import {
+  HiUpload,
+  HiVideoCamera,
+  HiRefresh,
+  HiX,
+  HiPlay,
+  HiFolder,
+  HiDocumentText,
+  HiCheck,
+} from "react-icons/hi";
 
 interface FileItem {
   filename: string;
@@ -20,8 +29,15 @@ interface VideoImportProps {
   onImportSuccess: () => void;
 }
 
-const VideoImport: React.FC<VideoImportProps> = ({ isOpen, onClose, onImportSuccess }) => {
-  const [availableFiles, setAvailableFiles] = useState<AvailableFiles>({ videos: [], csvFiles: [] });
+const VideoImport: React.FC<VideoImportProps> = ({
+  isOpen,
+  onClose,
+  onImportSuccess,
+}) => {
+  const [availableFiles, setAvailableFiles] = useState<AvailableFiles>({
+    videos: [],
+    csvFiles: [],
+  });
   const [loadingFiles, setLoadingFiles] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
   const [selectedCsv, setSelectedCsv] = useState<string | null>(null);
@@ -38,7 +54,9 @@ const VideoImport: React.FC<VideoImportProps> = ({ isOpen, onClose, onImportSucc
       const data = await response.json();
       setAvailableFiles(data);
     } catch (err) {
-      setImportError(err instanceof Error ? err.message : "Failed to fetch files");
+      setImportError(
+        err instanceof Error ? err.message : "Failed to fetch files"
+      );
     } finally {
       setLoadingFiles(false);
     }
@@ -53,16 +71,21 @@ const VideoImport: React.FC<VideoImportProps> = ({ isOpen, onClose, onImportSucc
     setImportingFiles(true);
     setImportMessage(null);
     setImportError(null);
-    
+
     try {
-      console.log("🎬 Importing video:", selectedVideo, "with CSV:", selectedCsv);
+      console.log(
+        "🎬 Importing video:",
+        selectedVideo,
+        "with CSV:",
+        selectedCsv
+      );
       const response = await fetch("/api/sessions/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           videoPath: selectedVideo,
           csvPath: selectedCsv,
-          autoProcess: true
+          autoProcess: true,
         }),
       });
 
@@ -73,24 +96,45 @@ const VideoImport: React.FC<VideoImportProps> = ({ isOpen, onClose, onImportSucc
 
       const data = await response.json();
       console.log("✅ Import response:", data);
-      
+
       const csvInfo = data.csv_processed ? " with telemetry data" : "";
-      setImportMessage(`${data.message}${csvInfo} (Session #${data.session_id}, ${data.detections} detections)`);
-      
-      // Notify parent component
-      onImportSuccess();
-      
-      // Close modal after successful import
-      setTimeout(() => {
-        onClose();
-        setImportMessage(null);
-        setSelectedVideo(null);
-        setSelectedCsv(null);
-      }, 3000);
-      
+
+      if (data.realtime_processing) {
+        setImportMessage(
+          `${data.message}${csvInfo} (Session #${data.session_id}) - Detections are being generated in real-time and stored in database. You can view progress in the sessions list.`
+        );
+
+        // Notify parent component immediately
+        onImportSuccess();
+
+        // Close modal after real-time processing starts
+        setTimeout(() => {
+          onClose();
+          setImportMessage(null);
+          setSelectedVideo(null);
+          setSelectedCsv(null);
+        }, 4000);
+      } else {
+        setImportMessage(
+          `${data.message}${csvInfo} (Session #${data.session_id}, ${data.detections} detections)`
+        );
+
+        // Notify parent component
+        onImportSuccess();
+
+        // Close modal after successful import
+        setTimeout(() => {
+          onClose();
+          setImportMessage(null);
+          setSelectedVideo(null);
+          setSelectedCsv(null);
+        }, 3000);
+      }
     } catch (err) {
       console.error("❌ Import failed:", err);
-      setImportError(err instanceof Error ? err.message : "Failed to import files");
+      setImportError(
+        err instanceof Error ? err.message : "Failed to import files"
+      );
     } finally {
       setImportingFiles(false);
     }
@@ -145,7 +189,7 @@ const VideoImport: React.FC<VideoImportProps> = ({ isOpen, onClose, onImportSucc
               <div className="text-xs mt-1 font-mono">{importMessage}</div>
             </div>
           )}
-          
+
           {importError && (
             <div className="mb-4 p-3 bg-red-500/10 border border-red-500 text-red-400 text-sm">
               <div className="font-medium">ERROR</div>
@@ -156,7 +200,10 @@ const VideoImport: React.FC<VideoImportProps> = ({ isOpen, onClose, onImportSucc
           {/* Controls */}
           <div className="flex items-center justify-between mb-6">
             <div className="text-sm text-cyber-muted font-mono">
-              Found {availableFiles.videos.length} video{availableFiles.videos.length !== 1 ? 's' : ''} and {availableFiles.csvFiles.length} CSV file{availableFiles.csvFiles.length !== 1 ? 's' : ''}
+              Found {availableFiles.videos.length} video
+              {availableFiles.videos.length !== 1 ? "s" : ""} and{" "}
+              {availableFiles.csvFiles.length} CSV file
+              {availableFiles.csvFiles.length !== 1 ? "s" : ""}
             </div>
             <div className="flex items-center gap-4">
               <button
@@ -165,7 +212,7 @@ const VideoImport: React.FC<VideoImportProps> = ({ isOpen, onClose, onImportSucc
                 className="px-3 py-2 bg-cyber-surface border border-neon-cyan text-neon-cyan hover:bg-cyber-border transition-colors text-sm font-mono disabled:opacity-50"
               >
                 <HiRefresh className="w-4 h-4 mr-2 inline" />
-                {loadingFiles ? 'SCANNING...' : 'REFRESH'}
+                {loadingFiles ? "SCANNING..." : "REFRESH"}
               </button>
               <button
                 onClick={importFiles}
@@ -194,13 +241,21 @@ const VideoImport: React.FC<VideoImportProps> = ({ isOpen, onClose, onImportSucc
           {/* Selection Summary */}
           <div className="mb-4 p-3 bg-cyber-surface/50 border border-cyber-border">
             <div className="text-sm text-cyber-muted font-mono">
-              <div className="font-medium text-neon-yellow mb-2">SELECTED FILES:</div>
+              <div className="font-medium text-neon-yellow mb-2">
+                SELECTED FILES:
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <span className="text-neon-cyan">VIDEO:</span> {selectedVideo ? selectedVideo.split('/').pop() : 'None selected'}
+                  <span className="text-neon-cyan">VIDEO:</span>{" "}
+                  {selectedVideo
+                    ? selectedVideo.split("/").pop()
+                    : "None selected"}
                 </div>
                 <div>
-                  <span className="text-neon-pink">CSV:</span> {selectedCsv ? selectedCsv.split('/').pop() : 'None selected (optional)'}
+                  <span className="text-neon-pink">CSV:</span>{" "}
+                  {selectedCsv
+                    ? selectedCsv.split("/").pop()
+                    : "None selected (optional)"}
                 </div>
               </div>
             </div>
@@ -211,18 +266,24 @@ const VideoImport: React.FC<VideoImportProps> = ({ isOpen, onClose, onImportSucc
             {loadingFiles ? (
               <div className="text-center py-8 text-cyber-muted">
                 <div className="animate-spin w-8 h-8 border-2 border-neon-cyan border-t-transparent mx-auto mb-4"></div>
-                <div className="font-medium font-mono">[SCANNING_DATA_DIRECTORY...]</div>
+                <div className="font-medium font-mono">
+                  [SCANNING_DATA_DIRECTORY...]
+                </div>
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-6 h-full">
+              <div className="grid grid-cols-2 gap-6 h-full overflow-hidden">
                 {/* Video Files Column */}
-                <div className="flex flex-col h-full">
-                  <div className="flex items-center gap-2 mb-4">
+                <div className="flex flex-col min-h-0">
+                  <div className="flex items-center gap-2 mb-4 flex-shrink-0">
                     <HiVideoCamera className="text-neon-cyan text-lg" />
-                    <h4 className="font-medium text-neon-cyan font-mono">VIDEO FILES</h4>
-                    <span className="text-xs text-cyber-muted font-mono">({availableFiles.videos.length})</span>
+                    <h4 className="font-medium text-neon-cyan font-mono">
+                      VIDEO FILES
+                    </h4>
+                    <span className="text-xs text-cyber-muted font-mono">
+                      ({availableFiles.videos.length})
+                    </span>
                   </div>
-                  <div className="flex-1 overflow-y-auto space-y-2">
+                  <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
                     {availableFiles.videos.length === 0 ? (
                       <div className="text-center py-8 text-cyber-muted">
                         <HiFolder className="text-4xl mb-2 mx-auto opacity-50" />
@@ -250,7 +311,10 @@ const VideoImport: React.FC<VideoImportProps> = ({ isOpen, onClose, onImportSucc
                                     {video.filename}
                                   </div>
                                   <div className="text-xs text-cyber-muted font-mono">
-                                    {video.sizeFormatted} • {new Date(video.modified).toLocaleDateString()}
+                                    {video.sizeFormatted} •{" "}
+                                    {new Date(
+                                      video.modified
+                                    ).toLocaleDateString()}
                                   </div>
                                 </div>
                               </div>
@@ -266,13 +330,17 @@ const VideoImport: React.FC<VideoImportProps> = ({ isOpen, onClose, onImportSucc
                 </div>
 
                 {/* CSV Files Column */}
-                <div className="flex flex-col h-full">
-                  <div className="flex items-center gap-2 mb-4">
+                <div className="flex flex-col min-h-0">
+                  <div className="flex items-center gap-2 mb-4 flex-shrink-0">
                     <HiDocumentText className="text-neon-pink text-lg" />
-                    <h4 className="font-medium text-neon-pink font-mono">TELEMETRY (CSV)</h4>
-                    <span className="text-xs text-cyber-muted font-mono">({availableFiles.csvFiles.length}) OPTIONAL</span>
+                    <h4 className="font-medium text-neon-pink font-mono">
+                      TELEMETRY (CSV)
+                    </h4>
+                    <span className="text-xs text-cyber-muted font-mono">
+                      ({availableFiles.csvFiles.length}) OPTIONAL
+                    </span>
                   </div>
-                  <div className="flex-1 overflow-y-auto space-y-2">
+                  <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
                     {/* None Selected Option */}
                     <div
                       className={`cyber-card border cursor-pointer transition-colors ${
@@ -307,7 +375,9 @@ const VideoImport: React.FC<VideoImportProps> = ({ isOpen, onClose, onImportSucc
                     {availableFiles.csvFiles.length === 0 ? (
                       <div className="text-center py-8 text-cyber-muted">
                         <HiFolder className="text-4xl mb-2 mx-auto opacity-50" />
-                        <div className="text-sm font-mono">No CSV files found</div>
+                        <div className="text-sm font-mono">
+                          No CSV files found
+                        </div>
                       </div>
                     ) : (
                       availableFiles.csvFiles.map((csv) => (
@@ -331,7 +401,10 @@ const VideoImport: React.FC<VideoImportProps> = ({ isOpen, onClose, onImportSucc
                                     {csv.filename}
                                   </div>
                                   <div className="text-xs text-cyber-muted font-mono">
-                                    {csv.sizeFormatted} • {new Date(csv.modified).toLocaleDateString()}
+                                    {csv.sizeFormatted} •{" "}
+                                    {new Date(
+                                      csv.modified
+                                    ).toLocaleDateString()}
                                   </div>
                                 </div>
                               </div>
@@ -353,10 +426,30 @@ const VideoImport: React.FC<VideoImportProps> = ({ isOpen, onClose, onImportSucc
           <div className="mt-6 p-4 bg-cyber-surface/50 border border-cyber-border">
             <div className="text-sm text-cyber-muted font-mono space-y-1">
               <div className="font-medium text-neon-yellow">INSTRUCTIONS:</div>
-              <div>• <span className="text-neon-cyan">STEP 1:</span> Select a video file from the left column</div>
-              <div>• <span className="text-neon-pink">STEP 2:</span> Optionally select a CSV file for telemetry data</div>
-              <div>• <span className="text-neon-green">STEP 3:</span> Click "IMPORT & PROCESS" to create session with detections</div>
-              <div>• CSV files contain drone telemetry (GPS, attitude, gimbal data)</div>
+              <div>
+                • <span className="text-neon-cyan">STEP 1:</span> Select a video
+                file from the left column
+              </div>
+              <div>
+                • <span className="text-neon-pink">STEP 2:</span> Optionally
+                select a CSV file for telemetry data
+              </div>
+              <div>
+                • <span className="text-neon-green">STEP 3:</span> Click "IMPORT
+                & PROCESS" for real-time detection generation
+              </div>
+              <div>
+                • <span className="text-neon-yellow">REAL-TIME:</span>{" "}
+                Detections are generated and stored in SQLite as they're
+                processed
+              </div>
+              <div>
+                • CSV files contain drone telemetry (GPS, attitude, gimbal data)
+              </div>
+              <div>
+                • View progress in sessions list - detection count updates live
+                during processing
+              </div>
             </div>
           </div>
         </div>

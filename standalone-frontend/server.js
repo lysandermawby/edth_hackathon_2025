@@ -587,7 +587,7 @@ app.post("/api/sessions/import", (req, res) => {
     const videoBasename = path.basename(videoPath, path.extname(videoPath));
     const videoDir = path.dirname(fullVideoPath);
     const expectedCsvPath = path.join(videoDir, `${videoBasename}.csv`);
-    
+
     try {
       // Copy CSV to expected location if it's not already there
       if (fullCsvPath !== expectedCsvPath) {
@@ -647,7 +647,20 @@ except:
       const newSessionId = this.lastID;
 
       if (autoProcess) {
-        // Automatically start processing the video
+        // Return immediate response and start real-time processing in background
+        res.json({
+          message: "Video imported, real-time processing started",
+          session_id: newSessionId,
+          video_path: relativePath,
+          csv_path: csvPath || null,
+          csv_processed: csvProcessed,
+          fps: fps,
+          detections: 0,
+          auto_processed: true,
+          realtime_processing: true,
+        });
+
+        // Start real-time processing in background using the enhanced tracker
         const scriptPath = path.join(
           __dirname,
           "..",
@@ -664,7 +677,10 @@ except:
           fullVideoPath,
         ];
 
-        console.log("Auto-processing imported video:", args.join(" "));
+        console.log(
+          "Starting real-time processing for imported video:",
+          args.join(" ")
+        );
 
         const pythonProcess = spawn("python3", args, {
           stdio: ["ignore", "pipe", "pipe"],
@@ -674,46 +690,35 @@ except:
         let stderr = "";
 
         pythonProcess.stdout.on("data", (data) => {
-          stdout += data.toString();
+          const output = data.toString();
+          stdout += output;
+          console.log("Real-time processing:", output.trim());
         });
 
         pythonProcess.stderr.on("data", (data) => {
-          stderr += data.toString();
+          const output = data.toString();
+          stderr += output;
+          console.log("Processing log:", output.trim());
         });
 
         pythonProcess.on("close", (processCode) => {
           if (processCode === 0) {
-            // Count detections
+            // Count final detections
             db.get(
               "SELECT COUNT(*) as count FROM tracked_objects WHERE session_id = ?",
               [newSessionId],
               (countErr, row) => {
                 const detectionCount = row?.count ?? 0;
-                res.json({
-                  message: "Video imported and processed successfully",
-                  session_id: newSessionId,
-                  video_path: relativePath,
-                  csv_path: csvPath || null,
-                  csv_processed: csvProcessed,
-                  fps: fps,
-                  detections: detectionCount,
-                  auto_processed: true,
-                });
+                console.log(
+                  `Real-time processing completed for session ${newSessionId}: ${detectionCount} detections`
+                );
               }
             );
           } else {
-            // Processing failed, but session was created
-            res.json({
-              message: "Video imported but processing failed",
-              session_id: newSessionId,
-              video_path: relativePath,
-              csv_path: csvPath || null,
-              csv_processed: csvProcessed,
-              fps: fps,
-              detections: 0,
-              auto_processed: false,
-              processing_error: stderr.trim() || stdout.trim(),
-            });
+            console.error(
+              `Real-time processing failed for session ${newSessionId}:`,
+              stderr.trim() || stdout.trim()
+            );
           }
         });
       } else {
@@ -729,6 +734,63 @@ except:
           auto_processed: false,
         });
       }
+    });
+  });
+});
+
+// Get real-time processing status for a session
+app.get("/api/sessions/:sessionId/processing-status", (req, res) => {
+  const sessionId = parseInt(req.params.sessionId);
+
+  if (isNaN(sessionId)) {
+    res.status(400).json({ error: "Invalid session ID" });
+    return;
+  }
+
+  // Get current detection count and session info
+  const query = `
+    SELECT 
+      s.session_id,
+      s.video_path,
+      s.total_frames,
+      s.fps,
+      COUNT(t.id) as current_detections,
+      MAX(t.frame_number) as last_processed_frame
+    FROM tracking_sessions s
+    LEFT JOIN tracked_objects t ON s.session_id = t.session_id
+    WHERE s.session_id = ?
+    GROUP BY s.session_id
+  `;
+
+  db.get(query, [sessionId], (err, row) => {
+    if (err) {
+      console.error("Database error:", err);
+      res.status(500).json({ error: "Database error" });
+      return;
+    }
+
+    if (!row) {
+      res.status(404).json({ error: "Session not found" });
+      return;
+    }
+
+    const totalFrames = row.total_frames || 0;
+    const lastProcessedFrame = row.last_processed_frame || 0;
+    const progressPercent =
+      totalFrames > 0
+        ? Math.round((lastProcessedFrame / totalFrames) * 100)
+        : 0;
+    const isComplete = totalFrames > 0 && lastProcessedFrame >= totalFrames;
+
+    res.json({
+      session_id: sessionId,
+      current_detections: row.current_detections || 0,
+      last_processed_frame: lastProcessedFrame,
+      total_frames: totalFrames,
+      progress_percent: progressPercent,
+      is_complete: isComplete,
+      fps: row.fps,
+      video_path: row.video_path,
     });
   });
 });
