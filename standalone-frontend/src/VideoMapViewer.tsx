@@ -430,7 +430,7 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
             </div>
           </div>
           <div className="card-body">
-            <div className="aspect-square rounded-xl overflow-hidden border border-neutral-200">
+            <div className="aspect-[4/3] rounded-xl overflow-hidden border border-neutral-200">
               <DroneMapViewer
                 metadata={actualMetadata}
                 currentFrame={mapFrame}

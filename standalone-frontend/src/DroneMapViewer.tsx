@@ -542,7 +542,7 @@ const DroneMapViewer: React.FC<DroneMapViewerProps> = ({
       <MapContainer
         center={getMapCenter()}
         zoom={mapZoom}
-        className="w-full h-3/4 rounded-lg"
+        className="w-full h-full rounded-lg"
         ref={mapRef}
       >
         <MapController center={getMapCenter()} zoom={mapZoom} />
