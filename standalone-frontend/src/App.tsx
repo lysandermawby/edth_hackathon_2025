@@ -10,11 +10,13 @@ import {
   HiLink,
   HiMap,
   HiAdjustments,
+  HiUpload,
 } from "react-icons/hi";
 import { MdGpsFixed, MdAnalytics } from "react-icons/md";
 import { RiLiveLine, RiFileListLine } from "react-icons/ri";
 import VideoMapViewer from "./VideoMapViewer";
 import RealtimeVideoCanvas from "./RealtimeVideoCanvas";
+import VideoImport from "./VideoImport";
 import type {
   Session,
   FrameDetections,
@@ -96,6 +98,7 @@ function App() {
     null
   );
   const [generationError, setGenerationError] = useState<string | null>(null);
+  const [showImportModal, setShowImportModal] = useState(false);
 
   useEffect(() => {
     fetchSessions();
@@ -217,7 +220,9 @@ function App() {
             : data.message;
         setGenerationMessage(detectionInfo);
       } else {
-        setGenerationMessage("Detections regenerated successfully with improved re-identification algorithm.");
+        setGenerationMessage(
+          "Detections regenerated successfully with improved re-identification algorithm."
+        );
       }
     } catch (err) {
       const message =
@@ -334,18 +339,27 @@ function App() {
             <div className="w-80 flex-shrink-0">
               <div className="card sticky top-6">
                 <div className="card-header">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-gradient-to-br from-primary-600 to-primary-700 rounded-lg flex items-center justify-center shadow-glow">
-                      <RiFileListLine className="text-white text-lg" />
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 bg-gradient-to-br from-primary-600 to-primary-700 rounded-lg flex items-center justify-center shadow-glow">
+                        <RiFileListLine className="text-white text-lg" />
+                      </div>
+                      <div>
+                        <h2 className="text-lg font-bold text-tactical-text">
+                          Recorded Sessions
+                        </h2>
+                        <p className="text-xs text-tactical-muted">
+                          {sessions.length} sessions available
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h2 className="text-lg font-bold text-tactical-text">
-                        Recorded Sessions
-                      </h2>
-                      <p className="text-xs text-tactical-muted">
-                        {sessions.length} sessions available
-                      </p>
-                    </div>
+                    <button
+                      onClick={() => setShowImportModal(true)}
+                      className="px-3 py-2 bg-neon-cyan text-cyber-black font-bold font-mono uppercase tracking-wider transition-all hover:bg-neon-cyan/80 border border-neon-cyan shadow-cyber text-sm"
+                    >
+                      <HiUpload className="w-4 h-4 mr-2 inline" />
+                      IMPORT
+                    </button>
                   </div>
                 </div>
 
@@ -580,6 +594,16 @@ function App() {
           </div>
         )}
       </div>
+
+      {/* Video Import Modal */}
+      <VideoImport
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onImportSuccess={() => {
+          fetchSessions();
+          setShowImportModal(false);
+        }}
+      />
     </div>
   );
 }
