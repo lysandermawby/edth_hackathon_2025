@@ -16,11 +16,13 @@ import { MdGpsFixed, MdAnalytics } from "react-icons/md";
 import { RiLiveLine, RiDashboardFill, RiFileListLine } from "react-icons/ri";
 import VideoMapViewer from "./VideoMapViewer";
 import RealtimeVideoCanvas from "./RealtimeVideoCanvas";
+import DroneVisualization3D from "./DroneVisualization3D";
 import type {
   Session,
   FrameDetections,
   DetectionData,
   SessionWithMetadata,
+  DroneMetadata,
 } from "./types";
 
 const convertDetectionsToFrames = (
@@ -97,6 +99,23 @@ function App() {
     null
   );
   const [generationError, setGenerationError] = useState<string | null>(null);
+  
+  // 3D Visualization sync state
+  const [currentVideoTime, setCurrentVideoTime] = useState(0);
+  const [videoDuration, setVideoDuration] = useState(0);
+  const [currentMetadata, setCurrentMetadata] = useState<DroneMetadata | undefined>(undefined);
+
+  // Calculate current metadata based on video time
+  useEffect(() => {
+    if (selectedSession?.metadata && videoDuration > 0) {
+      const videoProgress = Math.min(currentVideoTime / videoDuration, 1);
+      const metadataIndex = Math.floor(videoProgress * (selectedSession.metadata.length - 1));
+      const index = Math.max(0, Math.min(metadataIndex, selectedSession.metadata.length - 1));
+      setCurrentMetadata(selectedSession.metadata[index]);
+    } else {
+      setCurrentMetadata(undefined);
+    }
+  }, [currentVideoTime, videoDuration, selectedSession?.metadata]);
 
   useEffect(() => {
     fetchSessions();
@@ -523,6 +542,34 @@ function App() {
                   </div>
                 </div>
               </div>
+
+              {/* 3D Drone Visualization */}
+              <div className="cyber-card mt-6">
+                <div className="cyber-card-header">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-cyber-surface border-2 border-neon-purple flex items-center justify-center shadow-cyber relative">
+                      <HiCube className="text-neon-purple text-sm text-glow" />
+                      <div className="absolute inset-0 border border-neon-purple animate-pulse-neon opacity-30"></div>
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-neon-purple text-glow">
+                        &gt;&gt; DRONE_3D.EXE
+                      </h3>
+                      <p className="text-xs text-cyber-muted font-mono">
+                        [ORIENTATION_TRACKER_v1.2]
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-4">
+                  <div className="h-48">
+                    <DroneVisualization3D
+                      metadata={currentMetadata}
+                      className="h-full"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Main Content Area - Map Hero */}
@@ -660,6 +707,8 @@ function App() {
                     session={selectedSession}
                     trackingData={trackingData}
                     videoSrc={getVideoUrl(selectedSession)}
+                    onVideoTimeUpdate={setCurrentVideoTime}
+                    onVideoDurationUpdate={setVideoDuration}
                   />
                 </div>
               )}

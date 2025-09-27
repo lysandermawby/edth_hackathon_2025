@@ -20,12 +20,16 @@ interface VideoMapViewerProps {
   session: SessionWithMetadata;
   trackingData: FrameDetections[];
   videoSrc: string;
+  onVideoTimeUpdate?: (time: number) => void;
+  onVideoDurationUpdate?: (duration: number) => void;
 }
 
 const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
   session,
   trackingData,
   videoSrc,
+  onVideoTimeUpdate,
+  onVideoDurationUpdate,
 }) => {
   const [currentVideoTime, setCurrentVideoTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -106,12 +110,14 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
   // Handle video time updates
   const handleVideoTimeUpdate = useCallback((time: number) => {
     setCurrentVideoTime(time);
-  }, []);
+    onVideoTimeUpdate?.(time);
+  }, [onVideoTimeUpdate]);
 
   // Handle duration loaded
   const handleDurationLoad = useCallback((dur: number) => {
     setDuration(dur);
-  }, []);
+    onVideoDurationUpdate?.(dur);
+  }, [onVideoDurationUpdate]);
 
   const formatTime = (time: number): string => {
     if (!Number.isFinite(time)) return "0:00";
