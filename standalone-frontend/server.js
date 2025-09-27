@@ -494,8 +494,8 @@ except Exception as e:
   );
 });
 
-// Get available videos from data directory for import
-app.get("/api/videos/available", (req, res) => {
+// Get available videos and CSV files from data directory for import
+app.get("/api/files/available", (req, res) => {
   try {
     const videoExtensions = [
       ".mp4",
@@ -507,6 +507,7 @@ app.get("/api/videos/available", (req, res) => {
       ".webm",
     ];
     const videos = [];
+    const csvFiles = [];
 
     function scanDirectory(dirPath, relativePath = "") {
       const items = fs.readdirSync(dirPath);
@@ -531,6 +532,14 @@ app.get("/api/videos/available", (req, res) => {
               modified: stats.mtime.toISOString(),
               sizeFormatted: formatFileSize(stats.size),
             });
+          } else if (ext === ".csv") {
+            csvFiles.push({
+              filename: item,
+              path: itemRelativePath.replace(/\\/g, "/"), // Normalize path separators
+              size: stats.size,
+              modified: stats.mtime.toISOString(),
+              sizeFormatted: formatFileSize(stats.size),
+            });
           }
         }
       }
@@ -540,17 +549,18 @@ app.get("/api/videos/available", (req, res) => {
 
     // Sort by filename
     videos.sort((a, b) => a.filename.localeCompare(b.filename));
+    csvFiles.sort((a, b) => a.filename.localeCompare(b.filename));
 
-    res.json(videos);
+    res.json({ videos, csvFiles });
   } catch (error) {
-    console.error("Error scanning for videos:", error);
-    res.status(500).json({ error: "Failed to scan video directory" });
+    console.error("Error scanning for files:", error);
+    res.status(500).json({ error: "Failed to scan file directory" });
   }
 });
 
-// Create a new session from an imported video
+// Create a new session from an imported video and CSV
 app.post("/api/sessions/import", (req, res) => {
-  const { videoPath, autoProcess = true } = req.body;
+  const { videoPath, csvPath, autoProcess = true } = req.body;
 
   if (!videoPath) {
     res.status(400).json({ error: "Video path is required" });
@@ -562,6 +572,34 @@ app.post("/api/sessions/import", (req, res) => {
   if (!fs.existsSync(fullVideoPath)) {
     res.status(404).json({ error: "Video file not found" });
     return;
+  }
+
+  // Handle CSV file if provided
+  let csvProcessed = false;
+  if (csvPath) {
+    const fullCsvPath = path.join(DATA_DIR, csvPath);
+    if (!fs.existsSync(fullCsvPath)) {
+      res.status(404).json({ error: "CSV file not found" });
+      return;
+    }
+
+    // Copy CSV to match the video's naming convention for telemetry
+    const videoBasename = path.basename(videoPath, path.extname(videoPath));
+    const videoDir = path.dirname(fullVideoPath);
+    const expectedCsvPath = path.join(videoDir, `${videoBasename}.csv`);
+    
+    try {
+      // Copy CSV to expected location if it's not already there
+      if (fullCsvPath !== expectedCsvPath) {
+        fs.copyFileSync(fullCsvPath, expectedCsvPath);
+        console.log(`Copied CSV from ${fullCsvPath} to ${expectedCsvPath}`);
+      }
+      csvProcessed = true;
+    } catch (err) {
+      console.error("Error copying CSV file:", err);
+      res.status(500).json({ error: "Failed to process CSV file" });
+      return;
+    }
   }
 
   // Create new session in database with current timestamp
@@ -655,6 +693,8 @@ except:
                   message: "Video imported and processed successfully",
                   session_id: newSessionId,
                   video_path: relativePath,
+                  csv_path: csvPath || null,
+                  csv_processed: csvProcessed,
                   fps: fps,
                   detections: detectionCount,
                   auto_processed: true,
@@ -667,6 +707,8 @@ except:
               message: "Video imported but processing failed",
               session_id: newSessionId,
               video_path: relativePath,
+              csv_path: csvPath || null,
+              csv_processed: csvProcessed,
               fps: fps,
               detections: 0,
               auto_processed: false,
@@ -680,6 +722,8 @@ except:
           message: "Video imported successfully",
           session_id: newSessionId,
           video_path: relativePath,
+          csv_path: csvPath || null,
+          csv_processed: csvProcessed,
           fps: fps,
           detections: 0,
           auto_processed: false,
