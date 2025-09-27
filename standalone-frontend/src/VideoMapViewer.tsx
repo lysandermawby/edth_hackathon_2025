@@ -270,9 +270,11 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
               </div>
             </div>
             <div className="p-4">
-              <div className="space-y-4">
-                <div className="flex items-center gap-6">
-                  <div className="flex items-center gap-3">
+              {/* 3-Column Layout */}
+              <div className="grid grid-cols-3 gap-4">
+                {/* Column 1: Sync Controls */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
                     <input
                       type="checkbox"
                       id="sync-map"
@@ -284,14 +286,14 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
                       htmlFor="sync-map"
                       className="text-sm font-medium text-tactical-text flex items-center gap-2"
                     >
-                      <HiLink className="w-4 h-4" />
-                      Auto-sync with video
+                      <HiLink className="w-3 h-3" />
+                      Auto-sync
                     </label>
                   </div>
 
                   {!isMapSynced && (
-                    <div className="flex items-center gap-3">
-                      <label className="text-sm text-tactical-muted">
+                    <div className="space-y-2">
+                      <label className="text-xs text-tactical-muted block">
                         Manual frame:
                       </label>
                       <input
@@ -300,44 +302,44 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
                         max={Math.max(actualMetadata.length - 1, 0)}
                         value={mapFrame}
                         onChange={(e) => setMapFrame(Number(e.target.value))}
-                        className="w-32 h-2 bg-neutral-200 rounded-lg appearance-none cursor-pointer"
+                        className="w-full h-2 bg-neutral-200 rounded-lg appearance-none cursor-pointer"
                       />
-                      <span className="text-sm font-mono text-neutral-700 min-w-[60px] px-2 py-1 bg-neutral-100 rounded">
+                      <span className="text-xs font-mono text-neutral-700 px-2 py-1 bg-neutral-100 rounded block text-center">
                         {mapFrame}
                       </span>
                     </div>
                   )}
                 </div>
 
-                <div className="text-sm text-tactical-muted space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium">Video:</span>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono">
-                        {formatTime(currentVideoTime)} / {formatTime(duration)}
-                      </span>
-                      <span className="px-2 py-1 bg-primary-100 text-primary-700 rounded text-xs">
-                        {duration > 0
-                          ? ((currentVideoTime / duration) * 100).toFixed(1)
-                          : 0}
-                        %
-                      </span>
+                {/* Column 2: Video Info */}
+                <div className="space-y-2">
+                  <div className="text-xs text-tactical-muted font-medium">VIDEO</div>
+                  <div className="space-y-1">
+                    <div className="text-sm font-mono text-tactical-text">
+                      {formatTime(currentVideoTime)} / {formatTime(duration)}
+                    </div>
+                    <div className="px-2 py-1 bg-primary-100 text-primary-700 rounded text-xs text-center">
+                      {duration > 0
+                        ? ((currentVideoTime / duration) * 100).toFixed(1)
+                        : 0}
+                      %
                     </div>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium">Map:</span>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono">
-                        {mapFrame}/{actualMetadata.length - 1}
-                      </span>
-                      {actualMetadata.length > 0 &&
-                        mapFrame < actualMetadata.length && (
-                          <span className="px-2 py-1 bg-secondary-100 text-secondary-700 rounded text-xs">
-                            GPS#{mapFrame} @{" "}
-                            {actualMetadata[mapFrame].timestamp.toFixed(2)}s
-                          </span>
-                        )}
+                </div>
+
+                {/* Column 3: Map Info */}
+                <div className="space-y-2">
+                  <div className="text-xs text-tactical-muted font-medium">MAP</div>
+                  <div className="space-y-1">
+                    <div className="text-sm font-mono text-tactical-text">
+                      {mapFrame}/{actualMetadata.length - 1}
                     </div>
+                    {actualMetadata.length > 0 &&
+                      mapFrame < actualMetadata.length && (
+                        <div className="px-2 py-1 bg-secondary-100 text-secondary-700 rounded text-xs text-center">
+                          GPS#{mapFrame} @ {actualMetadata[mapFrame].timestamp.toFixed(1)}s
+                        </div>
+                      )}
                   </div>
                 </div>
               </div>
