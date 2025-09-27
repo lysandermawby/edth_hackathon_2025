@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import VideoCanvas from './VideoCanvas';
 import DroneMapViewer from './DroneMapViewer';
 import type { FrameDetections, DroneMetadata, SessionWithMetadata } from './types';
@@ -32,12 +32,6 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
     // Ensure we don't exceed array bounds
     return Math.max(0, Math.min(metadataIndex, metadata.length - 1));
   }, [duration]);
-
-  // Calculate current frame based on video time and FPS (fallback for display)
-  const getCurrentFrame = useCallback((time: number): number => {
-    if (!session.fps || duration === 0) return 0;
-    return Math.floor(time * session.fps);
-  }, [session.fps, duration]);
 
   // Use actual metadata from session, or fallback to sample data
   const actualMetadata: DroneMetadata[] = useMemo(() => {

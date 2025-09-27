@@ -3,6 +3,67 @@ import VideoMapViewer from "./VideoMapViewer";
 import RealtimeVideoCanvas from "./RealtimeVideoCanvas";
 import type { Session, FrameDetections, DetectionData, SessionWithMetadata } from "./types";
 
+const convertDetectionsToFrames = (
+  detections: DetectionData[],
+  fps?: number
+): FrameDetections[] => {
+  const frameMap = new Map<number, FrameDetections>();
+
+  detections.forEach((detection) => {
+    const assumedFps = Math.max(fps ?? 30, 1);
+    const fallbackTimestamp = detection.frame_number / assumedFps;
+    const timestamp = Number.isFinite(detection.timestamp)
+      ? detection.timestamp
+      : fallbackTimestamp;
+
+    if (!frameMap.has(detection.frame_number)) {
+      frameMap.set(detection.frame_number, {
+        frame_number: detection.frame_number,
+        timestamp,
+        objects: [],
+      });
+    }
+
+    const frame = frameMap.get(detection.frame_number)!;
+
+    frame.objects.push({
+      tracker_id: detection.tracker_id || undefined,
+      class_id: detection.class_id,
+      class_name: detection.class_name,
+      confidence: detection.confidence,
+      bbox: {
+        x1: detection.bbox_x1,
+        y1: detection.bbox_y1,
+        x2: detection.bbox_x2,
+        y2: detection.bbox_y2,
+      },
+      center: {
+        x: detection.center_x,
+        y: detection.center_y,
+      },
+    });
+
+    if (!Number.isFinite(frame.timestamp) || frame.timestamp > timestamp) {
+      frame.timestamp = timestamp;
+    }
+  });
+
+  const frames = Array.from(frameMap.values()).sort(
+    (a, b) => a.frame_number - b.frame_number
+  );
+
+  if (frames.length > 0) {
+    const minTimestamp = Math.min(...frames.map((frame) => frame.timestamp));
+    if (Number.isFinite(minTimestamp) && minTimestamp > 0) {
+      frames.forEach((frame) => {
+        frame.timestamp = frame.timestamp - minTimestamp;
+      });
+    }
+  }
+
+  return frames;
+};
+
 function App() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [selectedSession, setSelectedSession] = useState<SessionWithMetadata | null>(null);
@@ -10,6 +71,9 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"recorded" | "realtime">("recorded");
+  const [isGeneratingDetections, setIsGeneratingDetections] = useState(false);
+  const [generationMessage, setGenerationMessage] = useState<string | null>(null);
+  const [generationError, setGenerationError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchSessions();
@@ -29,6 +93,8 @@ function App() {
   const loadSessionData = async (session: Session) => {
     setLoading(true);
     setError(null);
+    setGenerationMessage(null);
+    setGenerationError(null);
 
     try {
       // Load both detections and metadata in parallel
@@ -40,41 +106,7 @@ function App() {
       if (!detectionsResponse.ok) throw new Error("Failed to fetch tracking data");
 
       const detections: DetectionData[] = await detectionsResponse.json();
-
-      // Convert detection data to FrameDetections format
-      const frameMap = new Map<number, FrameDetections>();
-
-      detections.forEach((detection) => {
-        if (!frameMap.has(detection.frame_number)) {
-          frameMap.set(detection.frame_number, {
-            frame_number: detection.frame_number,
-            timestamp: detection.timestamp,
-            objects: [],
-          });
-        }
-
-        const frame = frameMap.get(detection.frame_number)!;
-        frame.objects.push({
-          tracker_id: detection.tracker_id || undefined,
-          class_id: detection.class_id,
-          class_name: detection.class_name,
-          confidence: detection.confidence,
-          bbox: {
-            x1: detection.bbox_x1,
-            y1: detection.bbox_y1,
-            x2: detection.bbox_x2,
-            y2: detection.bbox_y2,
-          },
-          center: {
-            x: detection.center_x,
-            y: detection.center_y,
-          },
-        });
-      });
-
-      const frames = Array.from(frameMap.values()).sort(
-        (a, b) => a.frame_number - b.frame_number
-      );
+      const frames = convertDetectionsToFrames(detections, session.fps);
       setTrackingData(frames);
 
       // Load GPS metadata if available
@@ -102,11 +134,69 @@ function App() {
     }
   };
 
+  const regenerateDetections = async () => {
+    if (!selectedSession) return;
+
+    setIsGeneratingDetections(true);
+    setGenerationMessage(null);
+    setGenerationError(null);
+
+    try {
+      const response = await fetch(
+        `/api/sessions/${selectedSession.session_id}/generate-detections`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            videoPath: selectedSession.video_path,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
+        const message =
+          (errorBody && errorBody.error) ||
+          `Failed to regenerate detections (status ${response.status})`;
+        throw new Error(message);
+      }
+
+      const data = await response.json();
+
+      // Refresh session data to reflect the new detections
+      await loadSessionData(selectedSession);
+
+      if (data?.message) {
+        const detectionInfo =
+          typeof data.detections === "number"
+            ? `${data.message} (${data.detections} detections)`
+            : data.message;
+        setGenerationMessage(detectionInfo);
+      } else {
+        setGenerationMessage("Detections regenerated successfully.");
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to regenerate detections";
+      setGenerationError(message);
+      console.error(err);
+    } finally {
+      setIsGeneratingDetections(false);
+    }
+  };
+
   const getVideoUrl = (session: Session | SessionWithMetadata): string => {
     const url = `/api/video/${encodeURIComponent(session.video_path)}`;
     console.log("Generated video URL:", url, "for path:", session.video_path);
     return url;
   };
+
+  const totalDetections = trackingData.reduce(
+    (acc, frame) => acc + frame.objects.length,
+    0
+  );
+  const framesWithDetections = trackingData.filter(
+    (frame) => frame.objects.length > 0
+  ).length;
 
   return (
     <div className="bg-gradient-to-br from-primary-500 to-secondary-500 min-h-screen">
@@ -233,11 +323,52 @@ function App() {
               )}
 
               {selectedSession && !loading && (
-                <VideoMapViewer
-                  session={selectedSession}
-                  trackingData={trackingData}
-                  videoSrc={getVideoUrl(selectedSession)}
-                />
+                <div className="space-y-4">
+                  <div className="bg-white rounded-xl p-5 shadow-xl flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-700">
+                        Detection Summary
+                      </h3>
+                      {trackingData.length > 0 ? (
+                        <p className="text-sm text-gray-600">
+                          {framesWithDetections} frames with detections • {totalDetections} objects tracked
+                        </p>
+                      ) : (
+                        <p className="text-sm text-gray-600">
+                          No detections stored for this session yet.
+                        </p>
+                      )}
+                      {generationMessage && (
+                        <p className="text-sm text-green-600 mt-2">
+                          {generationMessage}
+                        </p>
+                      )}
+                      {generationError && (
+                        <p className="text-sm text-red-600 mt-2">
+                          {generationError}
+                        </p>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={regenerateDetections}
+                      disabled={isGeneratingDetections}
+                      className={`inline-flex items-center px-4 py-2 rounded-lg shadow-md transition-colors ${
+                        isGeneratingDetections
+                          ? "bg-gray-200 text-gray-500 cursor-not-allowed"
+                          : "bg-primary-500 text-white hover:bg-primary-600"
+                      }`}
+                    >
+                      {isGeneratingDetections ? "Generating…" : "Regenerate detections"}
+                    </button>
+                  </div>
+
+                  <VideoMapViewer
+                    session={selectedSession}
+                    trackingData={trackingData}
+                    videoSrc={getVideoUrl(selectedSession)}
+                  />
+                </div>
               )}
 
               {!selectedSession && !loading && (

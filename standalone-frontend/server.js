@@ -3,6 +3,7 @@ import cors from "cors";
 import sqlite3 from "sqlite3";
 import path from "path";
 import fs from "fs";
+import { spawn } from "child_process";
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -71,6 +72,102 @@ app.get("/api/sessions/:sessionId/detections", (req, res) => {
       return;
     }
     res.json(rows);
+  });
+});
+
+// Regenerate detections for a session using the Python tracking pipeline
+app.post("/api/sessions/:sessionId/generate-detections", (req, res) => {
+  const sessionId = parseInt(req.params.sessionId);
+
+  if (isNaN(sessionId)) {
+    res.status(400).json({ error: "Invalid session ID" });
+    return;
+  }
+
+  const {
+    videoPath,
+    keepExisting = false,
+    ignoreClasses = [],
+    showLabels = false
+  } = req.body || {};
+
+  const scriptPath = path.join(
+    __dirname,
+    "..",
+    "backend",
+    "tracking",
+    "generate_session_detections.py"
+  );
+
+  const args = [
+    scriptPath,
+    String(sessionId),
+    "--db-path",
+    DB_PATH
+  ];
+
+  if (videoPath && typeof videoPath === "string") {
+    args.push("--video-path", videoPath);
+  }
+
+  if (Array.isArray(ignoreClasses) && ignoreClasses.length > 0) {
+    args.push("--ignore-classes", ...ignoreClasses.map(String));
+  }
+
+  if (keepExisting) {
+    args.push("--keep-existing");
+  }
+
+  if (showLabels) {
+    args.push("--show-labels");
+  }
+
+  console.log("Generating detections via Python:", args.join(" "));
+
+  const pythonProcess = spawn("python3", args, {
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  let stdout = "";
+  let stderr = "";
+
+  pythonProcess.stdout.on("data", (data) => {
+    stdout += data.toString();
+  });
+
+  pythonProcess.stderr.on("data", (data) => {
+    stderr += data.toString();
+  });
+
+  pythonProcess.on("close", (code) => {
+    if (code !== 0) {
+      console.error("Detection generation failed:", stderr);
+      res.status(500).json({
+        error: "Failed to generate detections",
+        details: stderr.trim() || stdout.trim(),
+      });
+      return;
+    }
+
+    db.get(
+      "SELECT COUNT(*) as count FROM tracked_objects WHERE session_id = ?",
+      [sessionId],
+      (countErr, row) => {
+        if (countErr) {
+          console.error("Database error after generation:", countErr);
+          res.status(500).json({
+            error: "Detections generated but counting results failed",
+          });
+          return;
+        }
+
+        res.json({
+          message: "Detections generated successfully",
+          detections: row?.count ?? 0,
+          output: stdout.trim(),
+        });
+      }
+    );
   });
 });
 

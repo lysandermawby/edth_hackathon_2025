@@ -268,8 +268,21 @@ class IntegratedRealtimeTracker:
         return frame
     
     
-    def run(self, video_path):
-        """Main loop for integrated real-time video tracking"""
+    def run(self, video_path, session_id=None, reset_frame_count=True):
+        """Main loop for integrated real-time video tracking.
+
+        Args:
+            video_path (str): Path to the video file that should be processed.
+            session_id (int | None): Existing database session identifier to
+                reuse. When omitted, a new session is created automatically.
+            reset_frame_count (bool): Whether to reset the internal frame
+                counter before processing. Leave as True when regenerating
+                detections for an existing session so frame numbering starts at
+                zero.
+        """
+        if reset_frame_count:
+            self.frame_count = 0
+
         cap = cv2.VideoCapture(video_path)
         
         if not cap.isOpened():
@@ -290,11 +303,16 @@ class IntegratedRealtimeTracker:
             print(f"Ignoring classes: {', '.join(self.ignore_classes)}")
         print(f"Database enabled: {self.enable_database}")
         
-        # Start database session
+        # Start or reuse database session
         if self.enable_database:
-            self.session_id = self.db.start_session(video_path, fps)
-            self.data_processor.start_processing(video_path, fps, self.session_id)
-            print(f"Database session started: {self.session_id}")
+            if session_id is not None:
+                self.session_id = session_id
+                self.data_processor.start_processing(video_path, fps, self.session_id)
+                print(f"Using existing database session: {self.session_id}")
+            else:
+                self.session_id = self.db.start_session(video_path, fps)
+                self.data_processor.start_processing(video_path, fps, self.session_id)
+                print(f"Database session started: {self.session_id}")
         
         if self.headless:
             print("\n=== Integrated Real-time Video Tracking (Headless Mode) ===")
