@@ -7,6 +7,7 @@ import {
   HiChartBar,
   HiWifi,
   HiLocationMarker,
+  HiRefresh,
 } from "react-icons/hi";
 import VideoCanvas from "./VideoCanvas";
 import DroneMapViewer from "./DroneMapViewer";
@@ -21,12 +22,20 @@ interface VideoMapViewerProps {
   session: SessionWithMetadata;
   trackingData: FrameDetections[];
   videoSrc: string;
+  onRegenerateDetections?: () => void;
+  isGeneratingDetections?: boolean;
+  generationMessage?: string | null;
+  generationError?: string | null;
 }
 
 const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
   session,
   trackingData,
   videoSrc,
+  onRegenerateDetections,
+  isGeneratingDetections = false,
+  generationMessage,
+  generationError,
 }) => {
   const [currentVideoTime, setCurrentVideoTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -135,43 +144,90 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
           {/* Session Details */}
           <div className="card">
             <div className="card-header">
-              <div className="flex items-center gap-3">
-                <div className="w-6 h-6 bg-primary-600 rounded flex items-center justify-center">
-                  <HiVideoCamera className="text-white text-sm" />
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-6 h-6 bg-primary-600 rounded flex items-center justify-center">
+                    <HiVideoCamera className="text-white text-sm" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-tactical-text">
+                      Session #{session.session_id}
+                    </h3>
+                    <p className="text-xs text-tactical-muted">
+                      {session.video_path.split("/").pop()}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-semibold text-tactical-text">
-                    Session Details
-                  </h3>
-                  <p className="text-xs text-tactical-muted">
-                    {session.video_path.split("/").pop()}
-                  </p>
-                </div>
+                {onRegenerateDetections && (
+                  <button
+                    onClick={onRegenerateDetections}
+                    disabled={isGeneratingDetections}
+                    className={`btn ${
+                      isGeneratingDetections
+                        ? "btn-secondary cursor-not-allowed"
+                        : "btn-primary"
+                    }`}
+                  >
+                    {isGeneratingDetections ? (
+                      <>
+                        <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <HiRefresh className="w-4 h-4" />
+                        Regenerate
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
             </div>
             <div className="p-4">
+              {/* Status Messages */}
+              {generationMessage && (
+                <div className="mb-4 p-3 bg-success-50 border border-success-200 text-success-800 rounded-lg text-sm">
+                  <div className="font-medium">Success</div>
+                  <div className="text-xs mt-1">{generationMessage}</div>
+                </div>
+              )}
+              {generationError && (
+                <div className="mb-4 p-3 bg-accent-50 border border-accent-200 text-accent-800 rounded-lg text-sm">
+                  <div className="font-medium">Error</div>
+                  <div className="text-xs mt-1">{generationError}</div>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="text-center">
                   <div className="text-lg font-bold text-primary-600">
                     {trackingData.length}
                   </div>
-                  <div className="text-xs text-tactical-muted">Total Frames</div>
+                  <div className="text-xs text-tactical-muted">
+                    Total Frames
+                  </div>
                 </div>
                 <div className="text-center">
                   <div className="text-lg font-bold text-success-600">
                     {trackingData.filter((f) => f.objects.length > 0).length}
                   </div>
-                  <div className="text-xs text-tactical-muted">With Detections</div>
+                  <div className="text-xs text-tactical-muted">
+                    With Detections
+                  </div>
                 </div>
                 <div className="text-center">
                   <div className="text-lg font-bold text-warning-600">
-                    {new Set(
-                      trackingData.flatMap((f) =>
-                        f.objects.map((o) => o.tracker_id).filter(Boolean)
-                      )
-                    ).size}
+                    {
+                      new Set(
+                        trackingData.flatMap((f) =>
+                          f.objects.map((o) => o.tracker_id).filter(Boolean)
+                        )
+                      ).size
+                    }
                   </div>
-                  <div className="text-xs text-tactical-muted">Objects Tracked</div>
+                  <div className="text-xs text-tactical-muted">
+                    Objects Tracked
+                  </div>
                 </div>
                 <div className="text-center">
                   <div className="text-lg font-bold text-secondary-600">
@@ -180,6 +236,16 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
                   <div className="text-xs text-tactical-muted">FPS</div>
                 </div>
               </div>
+
+              {trackingData.length === 0 && (
+                <div className="text-center py-4 text-tactical-muted mt-4">
+                  <HiChartBar className="text-neutral-400 text-3xl mb-2 mx-auto" />
+                  <div className="font-medium">No detection data available</div>
+                  <div className="text-sm mt-1">
+                    Click "Regenerate" to process this session
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -303,7 +369,6 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
             </div>
           </div>
           <div className="card-body space-y-4">
-
             {/* Enhanced Telemetry Info */}
             {hasEnhancedTelemetry && (
               <div className="p-3 bg-success-50 border border-success-200 rounded-lg">

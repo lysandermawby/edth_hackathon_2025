@@ -12,7 +12,7 @@ import {
   HiAdjustments,
 } from "react-icons/hi";
 import { MdGpsFixed, MdAnalytics } from "react-icons/md";
-import { RiLiveLine, RiDashboardFill, RiFileListLine } from "react-icons/ri";
+import { RiLiveLine, RiFileListLine } from "react-icons/ri";
 import VideoMapViewer from "./VideoMapViewer";
 import RealtimeVideoCanvas from "./RealtimeVideoCanvas";
 import type {
@@ -233,13 +233,6 @@ function App() {
     return url;
   };
 
-  const totalDetections = trackingData.reduce(
-    (acc, frame) => acc + frame.objects.length,
-    0
-  );
-  const framesWithDetections = trackingData.filter(
-    (frame) => frame.objects.length > 0
-  ).length;
 
   return (
     <div className="min-h-screen bg-cyber-black">
@@ -547,120 +540,15 @@ function App() {
               )}
 
               {selectedSession && !loading && (
-                <div className="space-y-6">
-                  {/* Session Summary Dashboard */}
-                  <div className="card">
-                    <div className="card-header">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
-                            <RiDashboardFill className="text-white text-lg" />
-                          </div>
-                          <div>
-                            <h3 className="text-lg font-semibold text-tactical-text">
-                              Session #{selectedSession.session_id}
-                            </h3>
-                            <p className="text-sm text-tactical-muted">
-                              {selectedSession.video_path.split("/").pop()}
-                            </p>
-                          </div>
-                        </div>
-                        <button
-                          onClick={regenerateDetections}
-                          disabled={isGeneratingDetections}
-                          className={`btn ${
-                            isGeneratingDetections
-                              ? "btn-secondary cursor-not-allowed"
-                              : "btn-primary"
-                          }`}
-                        >
-                          {isGeneratingDetections ? (
-                            <>
-                              <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>
-                              Generating...
-                            </>
-                          ) : (
-                            <>
-                              <HiRefresh className="w-4 h-4" />
-                              Regenerate
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="card-body">
-                      {/* Status Messages */}
-                      {generationMessage && (
-                        <div className="mb-4 p-3 bg-success-50 border border-success-200 text-success-800 rounded-lg text-sm">
-                          <div className="font-medium">Success</div>
-                          <div className="text-xs mt-1">
-                            {generationMessage}
-                          </div>
-                        </div>
-                      )}
-                      {generationError && (
-                        <div className="mb-4 p-3 bg-accent-50 border border-accent-200 text-accent-800 rounded-lg text-sm">
-                          <div className="font-medium">Error</div>
-                          <div className="text-xs mt-1">{generationError}</div>
-                        </div>
-                      )}
-
-                      {/* Metrics Grid */}
-                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                        <div className="metric-display">
-                          <div className="text-2xl font-bold text-primary-600">
-                            {trackingData.length}
-                          </div>
-                          <div className="text-sm text-neutral-600">
-                            Total Frames
-                          </div>
-                        </div>
-                        <div className="metric-display">
-                          <div className="text-2xl font-bold text-success-600">
-                            {framesWithDetections}
-                          </div>
-                          <div className="text-sm text-neutral-600">
-                            With Detections
-                          </div>
-                        </div>
-                        <div className="metric-display">
-                          <div className="text-2xl font-bold text-secondary-600">
-                            {totalDetections}
-                          </div>
-                          <div className="text-sm text-neutral-600">
-                            Objects Tracked
-                          </div>
-                        </div>
-                        <div className="metric-display">
-                          <div className="text-2xl font-bold text-warning-600">
-                            {selectedSession.fps || "N/A"}
-                          </div>
-                          <div className="text-sm text-neutral-600">FPS</div>
-                        </div>
-                      </div>
-
-                      {trackingData.length === 0 && (
-                        <div className="text-center py-8 text-neutral-500">
-                          <HiChartBar className="text-neutral-400 text-4xl mb-2 mx-auto" />
-                          <div className="font-medium">
-                            No detection data available
-                          </div>
-                          <div className="text-sm mt-1">
-                            Click "Regenerate" to process this session
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Video and Map Viewer */}
-                  <VideoMapViewer
+                <VideoMapViewer
                     session={selectedSession}
                     trackingData={trackingData}
                     videoSrc={getVideoUrl(selectedSession)}
+                    onRegenerateDetections={regenerateDetections}
+                    isGeneratingDetections={isGeneratingDetections}
+                    generationMessage={generationMessage}
+                    generationError={generationError}
                   />
-                </div>
               )}
 
               {!selectedSession && !loading && (
