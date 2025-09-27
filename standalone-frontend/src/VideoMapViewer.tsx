@@ -282,7 +282,11 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
                         : "bg-neutral-100 text-neutral-600 border border-neutral-300 hover:bg-neutral-200"
                     }`}
                   >
-                    <HiLink className={`w-3 h-3 ${isMapSynced ? "text-white" : "text-neutral-500"}`} />
+                    <HiLink
+                      className={`w-3 h-3 ${
+                        isMapSynced ? "text-white" : "text-neutral-500"
+                      }`}
+                    />
                     {isMapSynced ? "Auto-sync ON" : "Auto-sync OFF"}
                   </button>
 
@@ -308,39 +312,35 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
 
                 {/* Column 2: Video Info */}
                 <div className="space-y-2">
-                  <div className="text-xs text-tactical-muted font-medium">
-                    VIDEO
-                  </div>
-                  <div className="space-y-1">
-                    <div className="text-sm font-mono text-tactical-text">
-                      {formatTime(currentVideoTime)} / {formatTime(duration)}
-                    </div>
-                    <div className="px-2 py-1 bg-primary-100 text-primary-700 rounded text-xs text-center">
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs text-tactical-muted font-medium">VIDEO</div>
+                    <div className="px-2 py-1 bg-primary-100 text-primary-700 rounded text-xs">
                       {duration > 0
                         ? ((currentVideoTime / duration) * 100).toFixed(1)
                         : 0}
                       %
                     </div>
                   </div>
+                  <div className="text-sm font-mono text-tactical-text">
+                    {formatTime(currentVideoTime)} / {formatTime(duration)}
+                  </div>
                 </div>
 
                 {/* Column 3: Map Info */}
                 <div className="space-y-2">
-                  <div className="text-xs text-tactical-muted font-medium">
-                    MAP
-                  </div>
-                  <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs text-tactical-muted font-medium">MAP</div>
                     <div className="text-sm font-mono text-tactical-text">
                       {mapFrame}/{actualMetadata.length - 1}
                     </div>
-                    {actualMetadata.length > 0 &&
-                      mapFrame < actualMetadata.length && (
-                        <div className="px-2 py-1 bg-secondary-100 text-secondary-700 rounded text-xs text-center">
-                          GPS#{mapFrame} @{" "}
-                          {actualMetadata[mapFrame].timestamp.toFixed(1)}s
-                        </div>
-                      )}
                   </div>
+                  {actualMetadata.length > 0 &&
+                    mapFrame < actualMetadata.length && (
+                      <div className="px-2 py-1 bg-secondary-100 text-secondary-700 rounded text-xs text-center">
+                        GPS#{mapFrame} @{" "}
+                        {actualMetadata[mapFrame].timestamp.toFixed(1)}s
+                      </div>
+                    )}
                 </div>
               </div>
             </div>
