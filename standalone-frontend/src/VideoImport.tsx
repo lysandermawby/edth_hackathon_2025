@@ -13,6 +13,7 @@ import {
 interface FileItem {
   filename: string;
   path: string;
+  directory: string;
   size: number;
   modified: string;
   sizeFormatted: string;
@@ -52,6 +53,7 @@ const VideoImport: React.FC<VideoImportProps> = ({
       const response = await fetch("/api/files/available");
       if (!response.ok) throw new Error("Failed to fetch available files");
       const data = await response.json();
+      console.log("📁 Fetched files:", data);
       setAvailableFiles(data);
     } catch (err) {
       setImportError(
@@ -155,8 +157,23 @@ const VideoImport: React.FC<VideoImportProps> = ({
   const canImport = selectedVideo && !importingFiles;
 
   return (
-    <div className="fixed inset-0 bg-cyber-black/80 flex items-center justify-center z-50">
-      <div className="cyber-card w-full max-w-7xl mx-4 max-h-[85vh] overflow-hidden flex flex-col">
+    <div 
+      className="z-50"
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        width: "100vw",
+        height: "100vh",
+        backgroundColor: "rgba(0, 0, 0, 0.8)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        margin: 0,
+        padding: 0,
+      }}
+    >
+      <div className="cyber-card w-full max-w-6xl mx-4 h-[80vh] flex flex-col">
         <div className="cyber-card-header">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -181,7 +198,7 @@ const VideoImport: React.FC<VideoImportProps> = ({
           </div>
         </div>
 
-        <div className="p-6 flex-1 overflow-hidden flex flex-col">
+        <div className="p-6 flex-1 flex flex-col" style={{ height: "calc(100% - 80px)" }}>
           {/* Status Messages */}
           {importMessage && (
             <div className="mb-4 p-3 bg-neon-green/10 border border-neon-green text-neon-green text-sm">
@@ -262,7 +279,7 @@ const VideoImport: React.FC<VideoImportProps> = ({
           </div>
 
           {/* File Lists */}
-          <div className="flex-1 overflow-hidden">
+          <div style={{ height: "400px" }}>
             {loadingFiles ? (
               <div className="text-center py-8 text-cyber-muted">
                 <div className="animate-spin w-8 h-8 border-2 border-neon-cyan border-t-transparent mx-auto mb-4"></div>
@@ -271,9 +288,9 @@ const VideoImport: React.FC<VideoImportProps> = ({
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-6 h-full overflow-hidden">
+              <div className="grid grid-cols-2 gap-6 h-full">
                 {/* Video Files Column */}
-                <div className="flex flex-col min-h-0">
+                <div className="flex flex-col h-full">
                   <div className="flex items-center gap-2 mb-4 flex-shrink-0">
                     <HiVideoCamera className="text-neon-cyan text-lg" />
                     <h4 className="font-medium text-neon-cyan font-mono">
@@ -283,7 +300,7 @@ const VideoImport: React.FC<VideoImportProps> = ({
                       ({availableFiles.videos.length})
                     </span>
                   </div>
-                  <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
+                  <div className="overflow-y-auto space-y-2" style={{ height: "350px" }}>
                     {availableFiles.videos.length === 0 ? (
                       <div className="text-center py-8 text-cyber-muted">
                         <HiFolder className="text-4xl mb-2 mx-auto opacity-50" />
@@ -310,6 +327,11 @@ const VideoImport: React.FC<VideoImportProps> = ({
                                   <div className="font-medium text-cyber-text truncate font-mono text-sm">
                                     {video.filename}
                                   </div>
+                                  {video.directory && (
+                                    <div className="text-xs text-neon-cyan/70 font-mono truncate">
+                                      📁 {video.directory}
+                                    </div>
+                                  )}
                                   <div className="text-xs text-cyber-muted font-mono">
                                     {video.sizeFormatted} •{" "}
                                     {new Date(
@@ -330,7 +352,7 @@ const VideoImport: React.FC<VideoImportProps> = ({
                 </div>
 
                 {/* CSV Files Column */}
-                <div className="flex flex-col min-h-0">
+                <div className="flex flex-col h-full">
                   <div className="flex items-center gap-2 mb-4 flex-shrink-0">
                     <HiDocumentText className="text-neon-pink text-lg" />
                     <h4 className="font-medium text-neon-pink font-mono">
@@ -340,7 +362,7 @@ const VideoImport: React.FC<VideoImportProps> = ({
                       ({availableFiles.csvFiles.length}) OPTIONAL
                     </span>
                   </div>
-                  <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
+                  <div className="overflow-y-auto space-y-2" style={{ height: "350px" }}>
                     {/* None Selected Option */}
                     <div
                       className={`cyber-card border cursor-pointer transition-colors ${
@@ -400,6 +422,11 @@ const VideoImport: React.FC<VideoImportProps> = ({
                                   <div className="font-medium text-cyber-text truncate font-mono text-sm">
                                     {csv.filename}
                                   </div>
+                                  {csv.directory && (
+                                    <div className="text-xs text-neon-pink/70 font-mono truncate">
+                                      📁 {csv.directory}
+                                    </div>
+                                  )}
                                   <div className="text-xs text-cyber-muted font-mono">
                                     {csv.sizeFormatted} •{" "}
                                     {new Date(
