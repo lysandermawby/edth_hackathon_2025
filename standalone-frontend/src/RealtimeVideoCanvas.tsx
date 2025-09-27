@@ -2,7 +2,12 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
 import { HiStop, HiRefresh, HiVideoCamera } from "react-icons/hi";
 import { BiWifi } from "react-icons/bi";
 import { MdVideocam, MdVideoFile } from "react-icons/md";
-import type { TrackingObject, ReidentificationStats } from "./types";
+import type {
+  TrackingObject,
+  ReidentificationStats,
+  EnhancedTelemetryPoint,
+  VelocityVector,
+} from "./types";
 import { RiEyeLine } from "react-icons/ri";
 
 interface RealtimeVideoCanvasProps {
@@ -16,12 +21,17 @@ interface DetectionFrame {
   fps: number;
   session_id: number;
   reid_stats?: ReidentificationStats;
+  telemetry?: EnhancedTelemetryPoint;
 }
 
 interface ServerMessage {
   type: string;
   [key: string]: any;
 }
+
+const VELOCITY_ARROW_SCALE = 0.12;
+const VELOCITY_MIN_ARROW = 10;
+const VELOCITY_MAX_ARROW = 50;
 
 const DETECTION_COLOURS = [
   "#FF6B6B",
@@ -41,7 +51,7 @@ const colourForObject = (obj: TrackingObject): string => {
   if (obj.is_reidentified) {
     return "#00D4FF";
   }
-  
+
   const base = obj.tracker_id ?? obj.class_id ?? 0;
   const index = Math.abs(base) % DETECTION_COLOURS.length;
   return DETECTION_COLOURS[index];
@@ -79,7 +89,9 @@ const drawDetections = (
       labelParts.push(obj.class_name);
     }
     if (Number.isFinite(obj.tracker_id)) {
-      const idLabel = obj.is_reidentified ? `#${obj.tracker_id}*` : `#${obj.tracker_id}`;
+      const idLabel = obj.is_reidentified
+        ? `#${obj.tracker_id}*`
+        : `#${obj.tracker_id}`;
       labelParts.push(idLabel);
     }
     if (typeof obj.confidence === "number") {
@@ -87,6 +99,21 @@ const drawDetections = (
     }
     if (obj.is_reidentified) {
       labelParts.push("REID");
+    }
+    if (obj.velocity) {
+      const speed = Number.isFinite(obj.velocity.speed)
+        ? Math.abs(obj.velocity.speed).toFixed(1)
+        : null;
+      if (speed !== null) {
+        labelParts.push(`S:${speed}px/s`);
+      }
+      const direction =
+        obj.velocity.direction !== null && Number.isFinite(obj.velocity.direction)
+          ? `${Math.round(obj.velocity.direction)}°`
+          : null;
+      if (direction) {
+        labelParts.push(`D:${direction}`);
+      }
     }
 
     if (labelParts.length > 0) {
@@ -107,7 +134,135 @@ const drawDetections = (
       ctx.fillStyle = "#FFFFFF";
       ctx.fillText(label, labelX + padding, boxY + textHeight - 6);
     }
+
+    if (obj.center && obj.velocity && obj.velocity.direction !== null) {
+      drawVelocityVector(ctx, obj.center, obj.velocity, colour);
+    }
   });
+};
+
+const clamp = (value: number, min: number, max: number): number => {
+  return Math.min(Math.max(value, min), max);
+};
+
+const drawVelocityVector = (
+  ctx: CanvasRenderingContext2D,
+  center: { x: number; y: number },
+  velocity: VelocityVector,
+  colour: string
+) => {
+  if (!Number.isFinite(velocity.speed) || velocity.direction === null) {
+    return;
+  }
+
+  const arrowLength = clamp(
+    velocity.speed * VELOCITY_ARROW_SCALE,
+    VELOCITY_MIN_ARROW,
+    VELOCITY_MAX_ARROW
+  );
+
+  const radians = (velocity.direction * Math.PI) / 180;
+  const endX = center.x + Math.cos(radians) * arrowLength;
+  const endY = center.y + Math.sin(radians) * arrowLength;
+
+  ctx.save();
+  ctx.strokeStyle = colour;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(center.x, center.y);
+  ctx.lineTo(endX, endY);
+  ctx.stroke();
+
+  const headLength = 7;
+  const angle = Math.atan2(endY - center.y, endX - center.x);
+  ctx.beginPath();
+  ctx.moveTo(endX, endY);
+  ctx.lineTo(
+    endX - headLength * Math.cos(angle - Math.PI / 6),
+    endY - headLength * Math.sin(angle - Math.PI / 6)
+  );
+  ctx.lineTo(
+    endX - headLength * Math.cos(angle + Math.PI / 6),
+    endY - headLength * Math.sin(angle + Math.PI / 6)
+  );
+  ctx.closePath();
+  ctx.fillStyle = colour;
+  ctx.fill();
+  ctx.restore();
+};
+
+const formatTelemetryValue = (value: number | undefined, digits = 2): string => {
+  if (value === undefined || value === null || !Number.isFinite(value)) {
+    return "—";
+  }
+  return value.toFixed(digits);
+};
+
+const drawTelemetryOverlay = (
+  ctx: CanvasRenderingContext2D,
+  telemetry: EnhancedTelemetryPoint
+) => {
+  const timestampSeconds =
+    telemetry.timestamp > 1e6 ? telemetry.timestamp / 1_000_000 : telemetry.timestamp;
+
+  const lines = [
+    `Timestamp μs: ${Math.round(telemetry.timestamp)}`,
+    `Video time s: ${timestampSeconds.toFixed(3)}`,
+    `Latitude: ${formatTelemetryValue(telemetry.latitude, 6)}  Longitude: ${formatTelemetryValue(
+      telemetry.longitude,
+      6
+    )}`,
+    `Altitude: ${formatTelemetryValue(telemetry.altitude, 1)} m  Slant: ${formatTelemetryValue(
+      telemetry.slant_range,
+      1
+    )} m`,
+    `Roll: ${formatTelemetryValue(telemetry.roll, 2)}°  Pitch: ${formatTelemetryValue(
+      telemetry.pitch,
+      2
+    )}°  Yaw: ${formatTelemetryValue(telemetry.yaw, 2)}°`,
+    `Gimbal: el ${formatTelemetryValue(telemetry.gimbal_elevation, 2)}°  az ${formatTelemetryValue(
+      telemetry.gimbal_azimuth,
+      2
+    )}°`,
+    `Center lat: ${formatTelemetryValue(telemetry.center_latitude, 6)}  lon: ${formatTelemetryValue(
+      telemetry.center_longitude,
+      6
+    )}`,
+  ];
+
+  if (telemetry.center_elevation !== undefined) {
+    lines.push(`Center elevation: ${formatTelemetryValue(telemetry.center_elevation, 1)} m`);
+  }
+
+  lines.push(
+    `FOV: h ${formatTelemetryValue(telemetry.hfov, 2)}°  v ${formatTelemetryValue(
+      telemetry.vfov,
+      2
+    )}°`
+  );
+
+  ctx.save();
+  ctx.font = "14px Inter, system-ui, sans-serif";
+  ctx.textBaseline = "top";
+
+  const paddingX = 12;
+  const paddingY = 10;
+  const lineHeight = 20;
+  const textWidths = lines.map((line) => ctx.measureText(line).width);
+  const boxWidth = Math.max(...textWidths) + paddingX * 2;
+  const boxHeight = lines.length * lineHeight + paddingY * 2;
+  const boxX = 16;
+  const boxY = 16;
+
+  ctx.fillStyle = "rgba(15, 23, 42, 0.7)";
+  ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+
+  ctx.fillStyle = "#F8FAFC";
+  lines.forEach((line, index) => {
+    ctx.fillText(line, boxX + paddingX, boxY + paddingY + index * lineHeight);
+  });
+
+  ctx.restore();
 };
 
 const RealtimeVideoCanvas: React.FC<RealtimeVideoCanvasProps> = ({
@@ -142,8 +297,10 @@ const RealtimeVideoCanvas: React.FC<RealtimeVideoCanvasProps> = ({
     total_reidentifications: 0,
     active_tracks: 0,
     lost_tracks: 0,
-    success_rate: 0
+    success_rate: 0,
   });
+  const [currentTelemetry, setCurrentTelemetry] =
+    useState<EnhancedTelemetryPoint | null>(null);
 
   const connectWebSocket = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
@@ -224,6 +381,7 @@ const RealtimeVideoCanvas: React.FC<RealtimeVideoCanvasProps> = ({
         setStatus("Disconnected");
         setCurrentDetections([]);
         setHoveredObject(null);
+        setCurrentTelemetry(null);
       };
 
       ws.onerror = (error) => {
@@ -246,7 +404,8 @@ const RealtimeVideoCanvas: React.FC<RealtimeVideoCanvasProps> = ({
       setObjectCount(message.detections?.length || 0);
       setFrameNumber(message.frame_number || 0);
       setCurrentDetections(message.detections || []);
-      
+      setCurrentTelemetry(message.telemetry ?? null);
+
       // Update re-identification statistics
       if (message.reid_stats) {
         setReidStats(message.reid_stats);
@@ -261,6 +420,7 @@ const RealtimeVideoCanvas: React.FC<RealtimeVideoCanvasProps> = ({
           fps: message.fps || 0,
           session_id: message.session_id,
           reid_stats: message.reid_stats,
+          telemetry: message.telemetry,
         });
       }
 
@@ -282,12 +442,18 @@ const RealtimeVideoCanvas: React.FC<RealtimeVideoCanvasProps> = ({
           if (message.detections && message.detections.length > 0) {
             drawDetections(ctx, message.detections);
           }
+
+          const telemetryData: EnhancedTelemetryPoint | null =
+            message.telemetry ?? currentTelemetry;
+          if (telemetryData) {
+            drawTelemetryOverlay(ctx, telemetryData);
+          }
         };
         img.src = `data:image/jpeg;base64,${message.frame_data}`;
         imageRef.current = img;
       }
     },
-    [onDetectionData]
+    [onDetectionData, currentTelemetry]
   );
 
   const sendCommand = useCallback((command: string, data: any = {}) => {
@@ -404,6 +570,54 @@ const RealtimeVideoCanvas: React.FC<RealtimeVideoCanvasProps> = ({
             </div>
           </div>
         </div>
+        {currentTelemetry && (
+          <div className="card-body border-t border-neutral-200 bg-neutral-50 text-sm text-neutral-700">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div>
+                <div className="text-xs uppercase tracking-wide text-neutral-500">
+                  Altitude / Slant
+                </div>
+                <div className="font-medium text-neutral-900">
+                  {formatTelemetryValue(currentTelemetry.altitude, 1)} m
+                  <span className="text-neutral-400"> • </span>
+                  {formatTelemetryValue(currentTelemetry.slant_range, 1)} m
+                </div>
+              </div>
+              <div>
+                <div className="text-xs uppercase tracking-wide text-neutral-500">
+                  Roll / Pitch / Yaw
+                </div>
+                <div className="font-medium text-neutral-900">
+                  {formatTelemetryValue(currentTelemetry.roll, 1)}°
+                  <span className="text-neutral-400"> / </span>
+                  {formatTelemetryValue(currentTelemetry.pitch, 1)}°
+                  <span className="text-neutral-400"> / </span>
+                  {formatTelemetryValue(currentTelemetry.yaw, 1)}°
+                </div>
+              </div>
+              <div>
+                <div className="text-xs uppercase tracking-wide text-neutral-500">
+                  Gimbal (el / az)
+                </div>
+                <div className="font-medium text-neutral-900">
+                  {formatTelemetryValue(currentTelemetry.gimbal_elevation, 1)}°
+                  <span className="text-neutral-400"> / </span>
+                  {formatTelemetryValue(currentTelemetry.gimbal_azimuth, 1)}°
+                </div>
+              </div>
+              <div>
+                <div className="text-xs uppercase tracking-wide text-neutral-500">
+                  Lat / Lon
+                </div>
+                <div className="font-medium text-neutral-900">
+                  {formatTelemetryValue(currentTelemetry.latitude, 5)}
+                  <span className="text-neutral-400"> / </span>
+                  {formatTelemetryValue(currentTelemetry.longitude, 5)}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Performance Metrics */}
@@ -569,43 +783,56 @@ const RealtimeVideoCanvas: React.FC<RealtimeVideoCanvasProps> = ({
                 : "none",
           }}
         >
-            <div className="bg-tactical-surface border border-tactical-border rounded-lg shadow-glow p-3 max-w-xs backdrop-blur-sm">
-              <div className="space-y-1 text-sm">
-                <div className="font-semibold text-primary-300 flex items-center gap-2">
-                  <HiVideoCamera className="w-4 h-4" />
-                  {hoveredObject.class_name}
-                  {hoveredObject.is_reidentified && (
-                    <span className="px-1.5 py-0.5 bg-cyan-500/20 text-cyan-300 rounded text-xs border border-cyan-500/30">
-                      REID
-                    </span>
-                  )}
-                </div>
-                {hoveredObject.tracker_id && (
-                  <div className="text-tactical-muted">
-                    <span className="text-green-400">ID:</span> #
-                    {hoveredObject.tracker_id}
-                  </div>
-                )}
-                <div className="text-tactical-muted">
-                  <span className="text-yellow-400">Confidence:</span>{" "}
-                  {Math.round(hoveredObject.confidence * 100)}%
-                </div>
-                {hoveredObject.bbox && (
-                  <>
-                    <div className="text-tactical-muted">
-                      <span className="text-purple-400">Position:</span> (
-                      {Math.round(hoveredObject.bbox.x1)},{" "}
-                      {Math.round(hoveredObject.bbox.y1)})
-                    </div>
-                    <div className="text-tactical-muted">
-                      <span className="text-orange-400">Size:</span>{" "}
-                      {Math.round(hoveredObject.bbox.x2 - hoveredObject.bbox.x1)}{" "}
-                      ×{" "}
-                      {Math.round(hoveredObject.bbox.y2 - hoveredObject.bbox.y1)}
-                    </div>
-                  </>
+          <div className="bg-tactical-surface border border-tactical-border rounded-lg shadow-glow p-3 max-w-xs backdrop-blur-sm">
+            <div className="space-y-1 text-sm">
+              <div className="font-semibold text-primary-300 flex items-center gap-2">
+                <HiVideoCamera className="w-4 h-4" />
+                {hoveredObject.class_name}
+                {hoveredObject.is_reidentified && (
+                  <span className="px-1.5 py-0.5 bg-cyan-500/20 text-cyan-300 rounded text-xs border border-cyan-500/30">
+                    REID
+                  </span>
                 )}
               </div>
+              {hoveredObject.tracker_id && (
+                <div className="text-tactical-muted">
+                  <span className="text-green-400">ID:</span> #
+                  {hoveredObject.tracker_id}
+                </div>
+              )}
+              <div className="text-tactical-muted">
+                <span className="text-yellow-400">Confidence:</span>{" "}
+                {Math.round(hoveredObject.confidence * 100)}%
+              </div>
+              {hoveredObject.bbox && (
+                <>
+                  <div className="text-tactical-muted">
+                    <span className="text-purple-400">Position:</span> (
+                    {Math.round(hoveredObject.bbox.x1)},{" "}
+                    {Math.round(hoveredObject.bbox.y1)})
+                  </div>
+                  <div className="text-tactical-muted">
+                    <span className="text-orange-400">Size:</span>{" "}
+                    {Math.round(hoveredObject.bbox.x2 - hoveredObject.bbox.x1)}{" "}
+                    ×{" "}
+                    {Math.round(hoveredObject.bbox.y2 - hoveredObject.bbox.y1)}
+                  </div>
+                </>
+              )}
+              {hoveredObject.velocity && (
+                <div className="text-tactical-muted">
+                  <span className="text-sky-400">Velocity:</span>{" "}
+                  {Number.isFinite(hoveredObject.velocity.speed)
+                    ? `${Math.abs(hoveredObject.velocity.speed).toFixed(1)} px/s`
+                    : "—"}
+                  {" • "}
+                  {hoveredObject.velocity.direction !== null &&
+                  Number.isFinite(hoveredObject.velocity.direction)
+                    ? `${Math.round(hoveredObject.velocity.direction)}°`
+                    : "—"}
+                </div>
+              )}
+            </div>
             <div
               className="absolute w-0 h-0 border-l-[6px] border-r-[6px] border-t-[6px] border-l-transparent border-r-transparent border-t-gray-900"
               style={{

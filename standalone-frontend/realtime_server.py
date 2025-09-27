@@ -17,6 +17,8 @@ import threading
 from pathlib import Path
 import sys
 import os
+import csv
+from typing import Dict, List, Optional, Union
 
 # Add the backend tracking module to the path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'backend', 'tracking'))
@@ -61,7 +63,11 @@ class RealtimeDetectionServer:
         
         # Performance tracking
         self.fps_tracker = []
-        
+
+        # Per-frame telemetry metadata
+        self.frame_metadata: List[Dict[str, Union[float, int]]] = []
+        self.metadata_ratio: Optional[float] = None
+
     async def register_client(self, websocket):
         """Register a new WebSocket client"""
         self.clients.add(websocket)
@@ -98,6 +104,73 @@ class RealtimeDetectionServer:
         _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
         frame_base64 = base64.b64encode(buffer).decode('utf-8')
         return frame_base64
+
+    def reset_metadata(self):
+        """Clear any loaded telemetry metadata."""
+        self.frame_metadata = []
+        self.metadata_ratio = None
+
+    def load_metadata_for_video(self, video_path: str, total_frames: int):
+        """Attempt to load telemetry metadata CSV aligned with the video."""
+        self.reset_metadata()
+
+        try:
+            csv_path = Path(video_path).with_suffix('.csv')
+            if not csv_path.exists():
+                # Some datasets keep metadata alongside video within nested folders
+                candidate = Path(video_path).parent / (Path(video_path).stem + '.csv')
+                if candidate.exists():
+                    csv_path = candidate
+                else:
+                    print(f"No telemetry CSV found for {video_path}")
+                    return
+
+            with csv_path.open('r', newline='') as csvfile:
+                reader = csv.DictReader(csvfile)
+                loaded_rows: List[Dict[str, Union[float, int]]] = []
+                for row in reader:
+                    try:
+                        converted: Dict[str, Union[float, int]] = {}
+                        for key, value in row.items():
+                            if value is None or value == "":
+                                continue
+                            if key == "timestamp":
+                                converted[key] = int(float(value))
+                            else:
+                                converted[key] = float(value)
+                        loaded_rows.append(converted)
+                    except ValueError:
+                        # Skip rows with invalid numeric data
+                        continue
+
+            if not loaded_rows:
+                print(f"Telemetry CSV {csv_path} contained no usable rows")
+                return
+
+            self.frame_metadata = loaded_rows
+            if total_frames and total_frames > 0:
+                self.metadata_ratio = len(self.frame_metadata) / float(total_frames)
+            else:
+                self.metadata_ratio = None
+
+            print(f"Loaded {len(self.frame_metadata)} telemetry rows from {csv_path}")
+
+        except Exception as error:
+            print(f"Failed to load telemetry metadata for {video_path}: {error}")
+            self.reset_metadata()
+
+    def get_metadata_for_frame(self, frame_index: int) -> Optional[Dict[str, Union[float, int]]]:
+        """Retrieve telemetry metadata aligned to the specified frame index."""
+        if not self.frame_metadata:
+            return None
+
+        if self.metadata_ratio and self.metadata_ratio > 0:
+            approx_index = int(frame_index * self.metadata_ratio)
+        else:
+            approx_index = frame_index
+
+        approx_index = max(0, min(approx_index, len(self.frame_metadata) - 1))
+        return self.frame_metadata[approx_index]
         
     async def start_video_processing(self, source=0):
         """Start processing video from source (camera ID or video file path)"""
@@ -105,7 +178,7 @@ class RealtimeDetectionServer:
             # Initialize video capture
             if isinstance(source, str) and source.isdigit():
                 source = int(source)
-                
+
             self.cap = cv2.VideoCapture(source)
             if not self.cap.isOpened():
                 await self.broadcast(json.dumps({
@@ -113,17 +186,18 @@ class RealtimeDetectionServer:
                     "message": f"Could not open video source: {source}"
                 }))
                 return
-                
+
             # Set camera properties if using webcam
             if isinstance(source, int):
                 self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
                 self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
                 self.cap.set(cv2.CAP_PROP_FPS, 30)
-                
+
             fps = self.cap.get(cv2.CAP_PROP_FPS) or 30
             width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
             height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            
+            total_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT)) if not isinstance(source, int) else 0
+
             await self.broadcast(json.dumps({
                 "type": "video_info",
                 "fps": fps,
@@ -131,11 +205,17 @@ class RealtimeDetectionServer:
                 "height": height,
                 "source": str(source)
             }))
-            
+
             self.running = True
             self.frame_count = 0
             self.start_time = time.time()
             
+            # Load telemetry metadata when available for video files
+            if isinstance(source, str):
+                self.load_metadata_for_video(source, total_frames)
+            else:
+                self.reset_metadata()
+
             # Start database session
             source_path = str(source) if isinstance(source, int) else source
             if self.tracker.enable_database and self.tracker.db:
@@ -147,7 +227,7 @@ class RealtimeDetectionServer:
             
             print(f"Started video processing from source: {source}")
             print(f"Resolution: {width}x{height}, FPS: {fps}")
-            
+
             # Main processing loop
             while self.running and self.cap.isOpened():
                 ret, frame = self.cap.read()
@@ -160,14 +240,17 @@ class RealtimeDetectionServer:
                         break
                     else:  # Camera error
                         continue
-                        
+
                 # Process frame for detection and tracking
                 frame_start_time = time.time()
-                current_timestamp = time.time() - self.start_time
-                
+                if fps:
+                    current_timestamp = self.frame_count / fps
+                else:
+                    current_timestamp = time.time() - self.start_time
+
                 try:
                     annotated_frame, detections, tracking_data = self.tracker.process_frame(frame, current_timestamp)
-                    
+
                     # Calculate FPS
                     processing_time = time.time() - frame_start_time
                     current_fps = 1.0 / processing_time if processing_time > 0 else 0
@@ -197,12 +280,15 @@ class RealtimeDetectionServer:
                             "confidence": obj['confidence'],
                             "bbox": obj['bbox'],
                             "center": obj['center'],
-                            "is_reidentified": obj.get('is_reidentified', False)
+                            "is_reidentified": obj.get('is_reidentified', False),
+                            "velocity": obj.get('velocity')
                         })
-                    
+
                     # Get re-identification statistics
                     reid_stats = self.tracker.reid_system.get_statistics()
-                    
+
+                    telemetry = self.get_metadata_for_frame(self.frame_count)
+
                     # Send frame and detection data to clients
                     message = {
                         "type": "frame",
@@ -219,11 +305,14 @@ class RealtimeDetectionServer:
                             "success_rate": reid_stats.get('success_rate', 0.0)
                         }
                     }
-                    
+
+                    if telemetry:
+                        message["telemetry"] = telemetry
+
                     await self.broadcast(json.dumps(message))
-                    
+
                     self.frame_count += 1
-                    
+
                     # Control frame rate to prevent overwhelming clients
                     await asyncio.sleep(0.033)  # ~30 FPS max
                     
@@ -250,11 +339,14 @@ class RealtimeDetectionServer:
         if self.cap:
             self.cap.release()
             self.cap = None
-            
+
         # Stop database processing
         if self.tracker.enable_database and hasattr(self.tracker, 'data_processor') and self.tracker.data_processor:
             self.tracker.data_processor.stop_processing(self.frame_count)
-            
+
+        # Reset metadata cache
+        self.reset_metadata()
+
         await self.broadcast(json.dumps({
             "type": "status",
             "message": "Video processing stopped"

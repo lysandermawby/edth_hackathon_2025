@@ -13,6 +13,15 @@ export interface TrackingObject {
   bbox: BoundingBox;
   center?: { x: number; y: number };
   is_reidentified?: boolean;
+  velocity?: VelocityVector;
+}
+
+export interface VelocityVector {
+  vx: number;
+  vy: number;
+  speed: number;
+  direction: number | null;
+  delta_time?: number | null;
 }
 
 export interface FrameDetections {
@@ -73,10 +82,11 @@ export interface EnhancedTelemetryPoint {
   gimbal_azimuth: number;
   center_latitude: number;
   center_longitude: number;
+  center_elevation?: number;
   slant_range: number;
   hfov: number;
   vfov: number;
-  footprint?: number[][];  // [lon, lat] polygon coordinates
+  footprint?: number[][]; // [lon, lat] polygon coordinates
 }
 
 export interface FlightAnalytics {

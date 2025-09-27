@@ -223,10 +223,21 @@
 .leaflet-control-zoom a,
 .leaflet-control-layers-toggle,
 .leaflet-control-attribution {
-  color: #1f2937 !important;
-  background-color: rgba(255, 255, 255, 0.95) !important;
-  border: 1px solid #d1d5db !important;
+  color: #f1f5f9 !important;
+  background-color: rgba(26, 31, 46, 0.8) !important;
+  border: 1px solid #2a2f3e !important;
+  backdrop-filter: blur(4px) !important;
 }
+
+.leaflet-control-layers-expanded {
+  background-color: rgba(26, 31, 46, 0.8) !important;
+  color: #f1f5f9 !important;
+}
+
+.leaflet-control-layers-selector:hover {
+  background-color: #334155 !important;
+}
+
 
 .leaflet-control-zoom a:hover {
   background-color: #f3f4f6 !important;

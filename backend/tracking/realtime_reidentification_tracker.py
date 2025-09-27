@@ -17,6 +17,7 @@ from datetime import datetime
 import threading
 import queue
 from datetime import datetime
+import math
 
 # Import core dependencies with error handling
 try:
@@ -163,6 +164,10 @@ class RealtimeReidentificationTracker:
             'active_tracks': 0,
             'lost_tracks': 0
         }
+
+        # Maintain last known position per track for velocity computation
+        self.track_history = {}
+        self.velocity_smoothing = 0.6  # Rolling average weight
         
     def filter_detections(self, detections):
         """Filter out ignored classes"""
@@ -241,9 +246,79 @@ class RealtimeReidentificationTracker:
                     },
                     'is_reidentified': is_reidentified
                 }
+
+                # Enrich object data with velocity estimates
+                velocity = self.compute_velocity(
+                    int(detections.tracker_id[i]),
+                    obj_data['center'],
+                    frame_timestamp
+                )
+                obj_data['velocity'] = velocity
+
                 frame_data['objects'].append(obj_data)
-        
+
+        # Keep history only for active tracks to prevent stale data
+        active_ids = {obj['tracker_id'] for obj in frame_data['objects'] if obj.get('tracker_id') is not None}
+        self.track_history = {
+            track_id: state
+            for track_id, state in self.track_history.items()
+            if track_id in active_ids
+        }
+
         return frame_data
+
+    def compute_velocity(self, track_id, center, timestamp):
+        """Compute per-track velocity vector and heading in image space."""
+        prev_state = self.track_history.get(track_id)
+        prev_avg_vx, prev_avg_vy = (0.0, 0.0)
+        if prev_state and 'avg_velocity' in prev_state:
+            prev_avg_vx, prev_avg_vy = prev_state['avg_velocity']
+        velocity = {
+            'vx': 0.0,
+            'vy': 0.0,
+            'speed': 0.0,
+            'direction': None,
+            'delta_time': None
+        }
+
+        if prev_state is not None:
+            dt = timestamp - prev_state['timestamp']
+            velocity['delta_time'] = dt if dt >= 0 else None
+
+            if dt and dt > 1e-3:
+                prev_cx, prev_cy = prev_state['center']
+                dx = center['x'] - prev_cx
+                dy = center['y'] - prev_cy
+                vx = dx / dt
+                vy = dy / dt
+                alpha = self.velocity_smoothing
+                smoothed_vx = alpha * vx + (1.0 - alpha) * prev_avg_vx
+                smoothed_vy = alpha * vy + (1.0 - alpha) * prev_avg_vy
+            else:
+                smoothed_vx, smoothed_vy = prev_avg_vx, prev_avg_vy
+        else:
+            smoothed_vx, smoothed_vy = 0.0, 0.0
+
+        speed = math.hypot(smoothed_vx, smoothed_vy)
+        heading = None
+        if speed > 1e-3:
+            heading = (math.degrees(math.atan2(smoothed_vy, smoothed_vx)) + 360.0) % 360.0
+
+        velocity.update({
+            'vx': smoothed_vx,
+            'vy': smoothed_vy,
+            'speed': speed,
+            'direction': heading,
+        })
+
+        # Update history with current observation
+        self.track_history[track_id] = {
+            'center': (center['x'], center['y']),
+            'timestamp': timestamp,
+            'avg_velocity': (smoothed_vx, smoothed_vy)
+        }
+
+        return velocity
     
     def process_frame(self, frame, frame_timestamp):
         """Process a single frame for detection, tracking, and re-identification"""
@@ -797,6 +872,7 @@ class RealtimeReidentificationTracker:
                     # Reset tracker
                     self.tracker = sv.ByteTrack()
                     self.reid_system = RobustReidentificationSystem()
+                    self.track_history = {}
                     print("Tracker and re-identification system reset")
                 elif key == ord('d'):
                     # Save tracking data

@@ -11,15 +11,10 @@ import {
   HiBookOpen,
   HiAdjustments,
 } from "react-icons/hi";
-import { MdGpsFixed, MdVideocam, MdAnalytics } from "react-icons/md";
+import { MdGpsFixed, MdAnalytics } from "react-icons/md";
 import VideoCanvas from "./VideoCanvas";
 import DroneMapViewer from "./DroneMapViewer";
-import type {
-  FrameDetections,
-  DroneMetadata,
-  SessionWithMetadata,
-  EnhancedTelemetryPoint,
-} from "./types";
+import type { FrameDetections, DroneMetadata, SessionWithMetadata } from "./types";
 
 interface VideoMapViewerProps {
   session: SessionWithMetadata;
