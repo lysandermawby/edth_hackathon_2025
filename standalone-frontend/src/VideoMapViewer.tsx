@@ -313,7 +313,9 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
                 {/* Column 2: Video Info */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <div className="text-xs text-tactical-muted font-medium">VIDEO</div>
+                    <div className="text-xs text-tactical-muted font-medium">
+                      VIDEO
+                    </div>
                     <div className="text-sm font-mono text-tactical-text">
                       {formatTime(currentVideoTime)} / {formatTime(duration)}
                     </div>
