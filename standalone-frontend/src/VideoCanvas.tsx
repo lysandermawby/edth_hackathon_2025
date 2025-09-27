@@ -4,6 +4,8 @@ import type { FrameDetections, TrackingObject } from "./types";
 interface VideoCanvasProps {
   videoSrc: string;
   trackingData: FrameDetections[];
+  onTimeUpdate?: (currentTime: number) => void;
+  onDurationLoad?: (duration: number) => void;
 }
 
 interface PreparedTrackingData {
@@ -155,22 +157,37 @@ const drawDetections = (
 const VideoCanvas: React.FC<VideoCanvasProps> = ({
   videoSrc,
   trackingData,
+  onTimeUpdate,
+  onDurationLoad,
 }) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const animationRef = useRef<number | null>(null);
   const lastFrameIndexRef = useRef(0);
+  const preparedDataRef = useRef<PreparedTrackingData>({
+    frames: [],
+    fps: 30,
+    hasDetections: false,
+  });
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
-  const [hoveredObject, setHoveredObject] = useState<TrackingObject | null>(null);
+  const [hoveredObject, setHoveredObject] = useState<TrackingObject | null>(
+    null
+  );
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const [isSeeking, setIsSeeking] = useState(false);
 
   const preparedData = useMemo(
     () => prepareTrackingData(trackingData),
     [trackingData]
   );
+
+  // Update the ref whenever preparedData changes
+  useEffect(() => {
+    preparedDataRef.current = preparedData;
+  }, [preparedData]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -179,24 +196,39 @@ const VideoCanvas: React.FC<VideoCanvasProps> = ({
     if (!video || !canvas) return;
 
     const handleLoadedMetadata = (): void => {
-      console.log("Video loaded:", video.videoWidth, "x", video.videoHeight);
       canvas.width = video.videoWidth || 640;
       canvas.height = video.videoHeight || 480;
-      setDuration(video.duration || 0);
+      const videoDuration = video.duration || 0;
+      setDuration(videoDuration);
       setCurrentTime(0);
       lastFrameIndexRef.current = 0;
+
+      // Notify parent component of duration
+      if (onDurationLoad) {
+        onDurationLoad(videoDuration);
+      }
     };
 
     const handleError = (e: Event): void => {
       console.error("Video error:", e);
     };
 
-    const handleLoadStart = (): void => {
-      console.log("Video load started:", videoSrc);
-    };
+    const handleLoadStart = (): void => {};
+
+    const handleCanPlay = (): void => {};
+
+    const handleLoadedData = (): void => {};
 
     const handleTimeUpdate = (): void => {
-      setCurrentTime(video.currentTime);
+      if (!isSeeking) {
+        const time = video.currentTime;
+        setCurrentTime(time);
+
+        // Notify parent component of time updates
+        if (onTimeUpdate) {
+          onTimeUpdate(time);
+        }
+      }
     };
 
     const handlePlay = (): void => setIsPlaying(true);
@@ -210,6 +242,8 @@ const VideoCanvas: React.FC<VideoCanvasProps> = ({
     video.addEventListener("ended", handleEnded);
     video.addEventListener("error", handleError);
     video.addEventListener("loadstart", handleLoadStart);
+    video.addEventListener("canplay", handleCanPlay);
+    video.addEventListener("loadeddata", handleLoadedData);
 
     return () => {
       video.removeEventListener("loadedmetadata", handleLoadedMetadata);
@@ -219,6 +253,8 @@ const VideoCanvas: React.FC<VideoCanvasProps> = ({
       video.removeEventListener("ended", handleEnded);
       video.removeEventListener("error", handleError);
       video.removeEventListener("loadstart", handleLoadStart);
+      video.removeEventListener("canplay", handleCanPlay);
+      video.removeEventListener("loadeddata", handleLoadedData);
     };
   }, [videoSrc]);
 
@@ -241,23 +277,38 @@ const VideoCanvas: React.FC<VideoCanvasProps> = ({
           canvas.height = video.videoHeight;
         }
 
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-        const frame = findFrameForTime(
-          video.currentTime,
-          preparedData.frames,
-          preparedData.fps,
-          lastFrameIndexRef
-        );
-        if (frame && frame.objects.length > 0) {
-          drawDetections(ctx, frame.objects);
+        // Only draw detections if we have tracking data
+        if (
+          preparedDataRef.current.frames &&
+          preparedDataRef.current.frames.length > 0
+        ) {
+          const frame = findFrameForTime(
+            video.currentTime,
+            preparedDataRef.current.frames,
+            preparedDataRef.current.fps,
+            lastFrameIndexRef
+          );
+          if (frame && frame.objects.length > 0) {
+            drawDetections(ctx, frame.objects);
+          }
         }
       }
 
-      animationRef.current = requestAnimationFrame(renderFrame);
+      // Only continue animation if video is playing
+      if (!video.paused && !video.ended && video.readyState >= 2) {
+        animationRef.current = requestAnimationFrame(renderFrame);
+      } else {
+        animationRef.current = null;
+      }
     };
 
-    renderFrame();
+    // Always render initial frame when video is ready
+    if (video.readyState >= 2) {
+      renderFrame();
+    }
 
     return () => {
       if (animationRef.current) {
@@ -265,25 +316,107 @@ const VideoCanvas: React.FC<VideoCanvasProps> = ({
         animationRef.current = null;
       }
     };
-  }, [videoSrc, preparedData.frames, preparedData.fps]);
+  }, [videoSrc]);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
+    // Only reset when video source actually changes
     video.pause();
     video.currentTime = 0;
     setIsPlaying(false);
     setCurrentTime(0);
+    lastFrameIndexRef.current = 0;
   }, [videoSrc]);
+
+  // Separate effect for handling seek updates without restarting animation
+  useEffect(() => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+
+    if (!video || !canvas || !isSeeking) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    // Render single frame when seeking
+    if (video.readyState >= 2) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      // Only draw detections if we have tracking data
+      if (
+        preparedDataRef.current.frames &&
+        preparedDataRef.current.frames.length > 0
+      ) {
+        const frame = findFrameForTime(
+          video.currentTime,
+          preparedDataRef.current.frames,
+          preparedDataRef.current.fps,
+          lastFrameIndexRef
+        );
+        if (frame && frame.objects.length > 0) {
+          drawDetections(ctx, frame.objects);
+        }
+      }
+    }
+  }, [currentTime, isSeeking]);
 
   const togglePlayback = async (): Promise<void> => {
     const video = videoRef.current;
-    if (!video) return;
+    const canvas = canvasRef.current;
+    if (!video || !canvas) return;
 
     if (video.paused || video.ended) {
       try {
         await video.play();
+
+        // Start animation loop for playing video
+        if (!animationRef.current && video.readyState >= 2) {
+          const ctx = canvas.getContext("2d");
+          if (ctx) {
+            const renderFrame = (): void => {
+              if (video.readyState >= 2) {
+                if (
+                  canvas.width !== video.videoWidth ||
+                  canvas.height !== video.videoHeight
+                ) {
+                  canvas.width = video.videoWidth;
+                  canvas.height = video.videoHeight;
+                }
+
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                // Only draw detections if we have tracking data
+                if (
+                  preparedDataRef.current.frames &&
+                  preparedDataRef.current.frames.length > 0
+                ) {
+                  const frame = findFrameForTime(
+                    video.currentTime,
+                    preparedDataRef.current.frames,
+                    preparedDataRef.current.fps,
+                    lastFrameIndexRef
+                  );
+                  if (frame && frame.objects.length > 0) {
+                    drawDetections(ctx, frame.objects);
+                  }
+                }
+              }
+
+              // Only continue animation if video is playing
+              if (!video.paused && !video.ended && video.readyState >= 2) {
+                animationRef.current = requestAnimationFrame(renderFrame);
+              } else {
+                animationRef.current = null;
+              }
+            };
+
+            animationRef.current = requestAnimationFrame(renderFrame);
+          }
+        }
       } catch (error) {
         console.error("Failed to play video", error);
       }
@@ -297,9 +430,15 @@ const VideoCanvas: React.FC<VideoCanvasProps> = ({
     if (!video) return;
 
     const nextTime = Number(event.target.value);
-    video.currentTime = nextTime;
+    setIsSeeking(true);
     setCurrentTime(nextTime);
+    video.currentTime = nextTime;
     lastFrameIndexRef.current = 0;
+
+    // Clear seeking flag after a short delay to allow video to update
+    setTimeout(() => {
+      setIsSeeking(false);
+    }, 100);
   };
 
   const handleMouseMove = (event: React.MouseEvent<HTMLCanvasElement>) => {
@@ -310,7 +449,7 @@ const VideoCanvas: React.FC<VideoCanvasProps> = ({
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
-    
+
     const x = (event.clientX - rect.left) * scaleX;
     const y = (event.clientY - rect.top) * scaleY;
 
@@ -320,8 +459,8 @@ const VideoCanvas: React.FC<VideoCanvasProps> = ({
     // Find the current frame and check for object intersections
     const frame = findFrameForTime(
       video.currentTime,
-      preparedData.frames,
-      preparedData.fps,
+      preparedDataRef.current.frames,
+      preparedDataRef.current.fps,
       lastFrameIndexRef
     );
 
@@ -363,7 +502,6 @@ const VideoCanvas: React.FC<VideoCanvasProps> = ({
           className="hidden"
           preload="metadata"
           playsInline
-          crossOrigin="anonymous"
           controls={false}
         />
       </div>
@@ -371,9 +509,9 @@ const VideoCanvas: React.FC<VideoCanvasProps> = ({
       <div className="flex flex-wrap items-center gap-4">
         <button
           onClick={togglePlayback}
-          className="px-4 py-2 rounded-lg bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md hover:from-primary-600 hover:to-primary-700 transition-all duration-200"
+          className="px-4 py-2 bg-neon-cyan text-cyber-black font-bold font-mono uppercase tracking-wider transition-all duration-200 border border-neon-cyan hover:bg-neon-cyan/80 shadow-cyber"
         >
-          {isPlaying ? "Pause" : "Play"}
+          {isPlaying ? "PAUSE" : "PLAY"}
         </button>
         <input
           type="range"
@@ -382,25 +520,12 @@ const VideoCanvas: React.FC<VideoCanvasProps> = ({
           step={0.033}
           value={currentTime}
           onChange={handleSeek}
-          className="flex-1"
+          className="flex-1 h-2 bg-cyber-surface border border-cyber-border appearance-none cursor-pointer cyber-slider"
         />
-        <span className="text-sm text-gray-600 min-w-[120px] text-right">
+        <span className="text-sm text-neon-cyan font-mono min-w-[120px] text-right">
           {formatTime(currentTime)} / {formatTime(duration)}
         </span>
       </div>
-
-      {preparedData.hasDetections && (
-        <div className="text-sm text-gray-600">
-          <p>
-            📊 Total frames with detections:{" "}
-            {preparedData.frames.filter((f) => f.objects.length > 0).length}
-          </p>
-          <p>
-            🎯 Total objects detected:{" "}
-            {preparedData.frames.reduce((acc, f) => acc + f.objects.length, 0)}
-          </p>
-        </div>
-      )}
 
       {/* Detection Tooltip */}
       {hoveredObject && (
@@ -409,7 +534,10 @@ const VideoCanvas: React.FC<VideoCanvasProps> = ({
           style={{
             left: mousePosition.x + 10,
             top: mousePosition.y - 10,
-            transform: mousePosition.x > window.innerWidth - 200 ? 'translateX(-100%)' : 'none'
+            transform:
+              mousePosition.x > window.innerWidth - 200
+                ? "translateX(-100%)"
+                : "none",
           }}
         >
           <div className="bg-gray-900 text-white rounded-lg shadow-xl border border-gray-600 p-3 max-w-xs">
@@ -419,34 +547,43 @@ const VideoCanvas: React.FC<VideoCanvasProps> = ({
               </div>
               {hoveredObject.tracker_id && (
                 <div className="text-gray-300">
-                  <span className="text-green-400">ID:</span> #{hoveredObject.tracker_id}
+                  <span className="text-green-400">ID:</span> #
+                  {hoveredObject.tracker_id}
                 </div>
               )}
               <div className="text-gray-300">
-                <span className="text-yellow-400">Confidence:</span> {Math.round(hoveredObject.confidence * 100)}%
+                <span className="text-yellow-400">Confidence:</span>{" "}
+                {Math.round(hoveredObject.confidence * 100)}%
               </div>
               {hoveredObject.bbox && (
                 <>
                   <div className="text-gray-300">
-                    <span className="text-purple-400">Position:</span> ({Math.round(hoveredObject.bbox.x1)}, {Math.round(hoveredObject.bbox.y1)})
+                    <span className="text-purple-400">Position:</span> (
+                    {Math.round(hoveredObject.bbox.x1)},{" "}
+                    {Math.round(hoveredObject.bbox.y1)})
                   </div>
                   <div className="text-gray-300">
-                    <span className="text-orange-400">Size:</span> {Math.round(hoveredObject.bbox.x2 - hoveredObject.bbox.x1)} × {Math.round(hoveredObject.bbox.y2 - hoveredObject.bbox.y1)}
+                    <span className="text-orange-400">Size:</span>{" "}
+                    {Math.round(hoveredObject.bbox.x2 - hoveredObject.bbox.x1)}{" "}
+                    ×{" "}
+                    {Math.round(hoveredObject.bbox.y2 - hoveredObject.bbox.y1)}
                   </div>
                 </>
               )}
               {hoveredObject.center && (
                 <div className="text-gray-300">
-                  <span className="text-cyan-400">Center:</span> ({Math.round(hoveredObject.center.x)}, {Math.round(hoveredObject.center.y)})
+                  <span className="text-cyan-400">Center:</span> (
+                  {Math.round(hoveredObject.center.x)},{" "}
+                  {Math.round(hoveredObject.center.y)})
                 </div>
               )}
             </div>
             {/* Arrow pointing to the object */}
-            <div 
+            <div
               className="absolute w-0 h-0 border-l-[6px] border-r-[6px] border-t-[6px] border-l-transparent border-r-transparent border-t-gray-900"
               style={{
-                left: '20px',
-                bottom: '-6px'
+                left: "20px",
+                bottom: "-6px",
               }}
             />
           </div>

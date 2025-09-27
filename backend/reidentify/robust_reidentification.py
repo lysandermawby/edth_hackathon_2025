@@ -165,32 +165,79 @@ class MultiModalFeatureExtractor:
         # Initialize deep learning model
         self._init_deep_model()
         
-        # Feature weights for combination
+        # Feature weights for combination - optimized for accuracy
         self.feature_weights = {
-            'color_hist': 0.4,
-            'hog': 0.6,
-            'deep': 0.0
+            'color_hist': 0.2,  # Reduced - color can be unreliable
+            'hog': 0.3,         # Reduced - shape can vary
+            'deep': 0.5         # Highest weight - most discriminative
         }
         
     def _init_deep_model(self):
-        """Initialize deep learning feature extractor"""
+        """Initialize ensemble of deep learning feature extractors for maximum accuracy"""
         try:
-            self.deep_model = resnet50(weights=ResNet50_Weights.IMAGENET1K_V2)
-            # Remove final classification layer
-            self.deep_model = nn.Sequential(*list(self.deep_model.children())[:-1])
-            self.deep_model.eval()
-            self.deep_model.to(self.device)
-            
-            self.transform = transforms.Compose([
+            # Primary model: ResNet-50
+            self.resnet_model = resnet50(weights=ResNet50_Weights.IMAGENET1K_V2)
+            self.resnet_model = nn.Sequential(*list(self.resnet_model.children())[:-1])
+            self.resnet_model.eval()
+            self.resnet_model.to(self.device)
+
+            # Secondary model: EfficientNet (if available)
+            try:
+                from torchvision.models import efficientnet_b3, EfficientNet_B3_Weights
+                self.efficientnet_model = efficientnet_b3(weights=EfficientNet_B3_Weights.IMAGENET1K_V1)
+                self.efficientnet_model = nn.Sequential(*list(self.efficientnet_model.children())[:-1])
+                self.efficientnet_model.eval()
+                self.efficientnet_model.to(self.device)
+                self.efficientnet_available = True
+                print("✅ EfficientNet-B3 ensemble model loaded")
+            except Exception:
+                self.efficientnet_available = False
+                print("⚠️ EfficientNet not available, using ResNet-50 only")
+
+            # Tertiary model: MobileNet (lightweight but effective)
+            try:
+                from torchvision.models import mobilenet_v3_large, MobileNet_V3_Large_Weights
+                self.mobilenet_model = mobilenet_v3_large(weights=MobileNet_V3_Large_Weights.IMAGENET1K_V2)
+                self.mobilenet_model = nn.Sequential(*list(self.mobilenet_model.children())[:-1])
+                self.mobilenet_model.eval()
+                self.mobilenet_model.to(self.device)
+                self.mobilenet_available = True
+                print("✅ MobileNet-V3 ensemble model loaded")
+            except Exception:
+                self.mobilenet_available = False
+                print("⚠️ MobileNet not available")
+
+            # Transforms for different models
+            self.resnet_transform = transforms.Compose([
                 transforms.ToPILImage(),
                 transforms.Resize((224, 224)),
                 transforms.ToTensor(),
-                transforms.Normalize(mean=[0.485, 0.456, 0.406], 
+                transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                    std=[0.229, 0.224, 0.225])
             ])
+
+            self.efficientnet_transform = transforms.Compose([
+                transforms.ToPILImage(),
+                transforms.Resize((300, 300)),  # EfficientNet-B3 native size
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                   std=[0.229, 0.224, 0.225])
+            ])
+
+            self.mobilenet_transform = transforms.Compose([
+                transforms.ToPILImage(),
+                transforms.Resize((224, 224)),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                   std=[0.229, 0.224, 0.225])
+            ])
+
             self.deep_features_available = True
+            ensemble_count = 1 + (1 if self.efficientnet_available else 0) + (1 if self.mobilenet_available else 0)
+            print(f"✅ Deep learning ensemble initialized with {ensemble_count} models")
+
         except Exception as e:
-            print(f"Warning: Deep learning model not available: {e}")
+            print(f"Warning: Deep learning ensemble not available: {e}")
             self.deep_features_available = False
     
     def extract_color_histogram(self, image: np.ndarray, bbox: np.ndarray) -> np.ndarray:
@@ -236,84 +283,321 @@ class MultiModalFeatureExtractor:
             return np.zeros(1764)
     
     def extract_deep_features(self, image: np.ndarray, bbox: np.ndarray) -> np.ndarray:
-        """Extract deep learning features"""
+        """Extract ensemble deep learning features for maximum discriminative power"""
         if not self.deep_features_available:
-            return np.zeros(2048)
-            
+            return np.zeros(4096)  # Increased size for ensemble features
+
         x1, y1, x2, y2 = bbox.astype(int)
         x1, y1 = max(0, x1), max(0, y1)
         x2, y2 = min(image.shape[1], x2), min(image.shape[0], y2)
-        
+
         if x2 <= x1 or y2 <= y1:
-            return np.zeros(2048)
-            
+            return np.zeros(4096)
+
         roi = image[y1:y2, x1:x2]
-        
+        ensemble_features = []
+
         try:
-            input_tensor = self.transform(roi).unsqueeze(0).to(self.device)
-            
+            # Extract ResNet-50 features
+            resnet_tensor = self.resnet_transform(roi).unsqueeze(0).to(self.device)
             with torch.no_grad():
-                features = self.deep_model(input_tensor)
-                features = features.squeeze().cpu().numpy()
-                
-            # L2 normalize features
-            features = features / (np.linalg.norm(features) + 1e-8)
-            return features
-        except Exception:
-            return np.zeros(2048)
+                resnet_features = self.resnet_model(resnet_tensor).squeeze().cpu().numpy()
+                resnet_features = resnet_features / (np.linalg.norm(resnet_features) + 1e-8)
+                ensemble_features.append(resnet_features)
+
+            # Extract EfficientNet features if available
+            if self.efficientnet_available:
+                try:
+                    eff_tensor = self.efficientnet_transform(roi).unsqueeze(0).to(self.device)
+                    with torch.no_grad():
+                        eff_features = self.efficientnet_model(eff_tensor).squeeze().cpu().numpy()
+                        eff_features = eff_features / (np.linalg.norm(eff_features) + 1e-8)
+                        # Pad or truncate to match ResNet size
+                        if len(eff_features) > 2048:
+                            eff_features = eff_features[:2048]
+                        elif len(eff_features) < 2048:
+                            eff_features = np.pad(eff_features, (0, 2048 - len(eff_features)))
+                        ensemble_features.append(eff_features)
+                except Exception:
+                    pass
+
+            # Extract MobileNet features if available
+            if self.mobilenet_available:
+                try:
+                    mobile_tensor = self.mobilenet_transform(roi).unsqueeze(0).to(self.device)
+                    with torch.no_grad():
+                        mobile_features = self.mobilenet_model(mobile_tensor).squeeze().cpu().numpy()
+                        mobile_features = mobile_features / (np.linalg.norm(mobile_features) + 1e-8)
+                        # Pad or truncate to match ResNet size
+                        if len(mobile_features) > 2048:
+                            mobile_features = mobile_features[:2048]
+                        elif len(mobile_features) < 2048:
+                            mobile_features = np.pad(mobile_features, (0, 2048 - len(mobile_features)))
+                        ensemble_features.append(mobile_features)
+                except Exception:
+                    pass
+
+            # Combine ensemble features
+            if len(ensemble_features) == 1:
+                # Only ResNet available
+                final_features = np.pad(ensemble_features[0], (0, 2048))  # Pad to 4096
+            elif len(ensemble_features) == 2:
+                # Two models available
+                final_features = np.concatenate(ensemble_features)
+            else:
+                # All three models available - use weighted combination
+                weights = [0.5, 0.3, 0.2]  # ResNet gets highest weight
+                weighted_features = []
+                for i, features in enumerate(ensemble_features):
+                    weighted_features.append(features * weights[i])
+                final_features = np.concatenate(weighted_features)
+
+            # Final L2 normalization
+            final_features = final_features / (np.linalg.norm(final_features) + 1e-8)
+
+            # Ensure consistent output size
+            if len(final_features) > 4096:
+                final_features = final_features[:4096]
+            elif len(final_features) < 4096:
+                final_features = np.pad(final_features, (0, 4096 - len(final_features)))
+
+            return final_features
+
+        except Exception as e:
+            return np.zeros(4096)
     
     def extract_all_features(self, image: np.ndarray, bbox: np.ndarray) -> Dict[str, np.ndarray]:
-        """Extract all available features"""
+        """Extract all available features with multi-scale approach"""
         features = {}
-        
-        # Color histogram features
-        features['color_hist'] = self.extract_color_histogram(image, bbox)
-        
-        # HOG features
-        features['hog'] = self.extract_hog_features(image, bbox)
-        
-        # Deep learning features
-        #features['deep'] = self.extract_deep_features(image, bbox)
-        
+
+        # Multi-scale feature extraction for better robustness
+        scales = [0.85, 1.0, 1.15]  # Different scales
+        multi_scale_features = {'color_hist': [], 'hog': [], 'deep': []}
+
+        for scale in scales:
+            # Scale the bounding box
+            x1, y1, x2, y2 = bbox
+            w, h = x2 - x1, y2 - y1
+            cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
+
+            scaled_bbox = np.array([
+                cx - w * scale / 2,
+                cy - h * scale / 2,
+                cx + w * scale / 2,
+                cy + h * scale / 2
+            ])
+
+            # Ensure bbox is within image bounds
+            scaled_bbox[0] = max(0, scaled_bbox[0])
+            scaled_bbox[1] = max(0, scaled_bbox[1])
+            scaled_bbox[2] = min(image.shape[1], scaled_bbox[2])
+            scaled_bbox[3] = min(image.shape[0], scaled_bbox[3])
+
+            # Skip if invalid bbox
+            if scaled_bbox[2] <= scaled_bbox[0] or scaled_bbox[3] <= scaled_bbox[1]:
+                continue
+
+            # Extract features at this scale
+            try:
+                color_feat = self.extract_color_histogram(image, scaled_bbox)
+                hog_feat = self.extract_hog_features(image, scaled_bbox)
+                deep_feat = self.extract_deep_features(image, scaled_bbox)
+
+                # Only add valid features
+                if np.linalg.norm(color_feat) > 1e-6:
+                    multi_scale_features['color_hist'].append(color_feat)
+                if np.linalg.norm(hog_feat) > 1e-6:
+                    multi_scale_features['hog'].append(hog_feat)
+                if np.linalg.norm(deep_feat) > 1e-6:
+                    multi_scale_features['deep'].append(deep_feat)
+            except Exception:
+                continue
+
+        # Combine multi-scale features
+        for feature_type in ['color_hist', 'hog', 'deep']:
+            if len(multi_scale_features[feature_type]) > 0:
+                # Use weighted average, giving more weight to the nominal scale (1.0)
+                if len(multi_scale_features[feature_type]) == 1:
+                    features[feature_type] = multi_scale_features[feature_type][0]
+                elif len(multi_scale_features[feature_type]) == 2:
+                    # Two scales available
+                    weights = [0.3, 0.7] if len(scales) == 3 else [0.4, 0.6]
+                    features[feature_type] = np.average(multi_scale_features[feature_type], axis=0, weights=weights)
+                else:
+                    # All three scales available
+                    weights = [0.2, 0.6, 0.2]  # Center scale gets highest weight
+                    features[feature_type] = np.average(multi_scale_features[feature_type], axis=0, weights=weights)
+            else:
+                # Fallback to single-scale extraction
+                if feature_type == 'color_hist':
+                    features[feature_type] = self.extract_color_histogram(image, bbox)
+                elif feature_type == 'hog':
+                    features[feature_type] = self.extract_hog_features(image, bbox)
+                elif feature_type == 'deep':
+                    features[feature_type] = self.extract_deep_features(image, bbox)
+
         return features
     
-    def compute_similarity(self, features1: Dict[str, np.ndarray], 
+    def compute_similarity(self, features1: Dict[str, np.ndarray],
                           features2: Dict[str, np.ndarray]) -> float:
-        """Compute combined similarity score"""
+        """Compute combined similarity score with advanced fusion"""
         similarities = []
         weights = []
-        
+        confidences = []
+
         # Color histogram similarity (Bhattacharyya distance)
         if 'color_hist' in features1 and 'color_hist' in features2:
             hist_sim = cv2.compareHist(
-                features1['color_hist'].reshape(-1, 1), 
-                features2['color_hist'].reshape(-1, 1), 
+                features1['color_hist'].reshape(-1, 1),
+                features2['color_hist'].reshape(-1, 1),
                 cv2.HISTCMP_BHATTACHARYYA
             )
-            similarities.append(1.0 - hist_sim)  # Convert distance to similarity
+            color_similarity = 1.0 - hist_sim  # Convert distance to similarity
+
+            # Compute confidence based on feature quality
+            color_conf = min(np.sum(features1['color_hist']), np.sum(features2['color_hist']))
+            color_conf = min(color_conf, 1.0)  # Normalize
+
+            similarities.append(color_similarity)
             weights.append(self.feature_weights['color_hist'])
-        
+            confidences.append(color_conf)
+
         # HOG similarity (cosine similarity)
         if 'hog' in features1 and 'hog' in features2:
-            hog_sim = np.dot(features1['hog'], features2['hog']) / (
-                np.linalg.norm(features1['hog']) * np.linalg.norm(features2['hog']) + 1e-8
-            )
-            similarities.append(hog_sim)
-            weights.append(self.feature_weights['hog'])
-        
-        # Deep features similarity (cosine similarity)
+            # Compute cosine similarity
+            norm1 = np.linalg.norm(features1['hog'])
+            norm2 = np.linalg.norm(features2['hog'])
+
+            if norm1 > 1e-8 and norm2 > 1e-8:
+                hog_sim = np.dot(features1['hog'], features2['hog']) / (norm1 * norm2)
+
+                # HOG confidence based on feature magnitude
+                hog_conf = min(norm1, norm2) / max(norm1, norm2) if max(norm1, norm2) > 1e-8 else 0.0
+
+                similarities.append(hog_sim)
+                weights.append(self.feature_weights['hog'])
+                confidences.append(hog_conf)
+
+        # Deep features similarity (cosine similarity with temperature scaling)
         if 'deep' in features1 and 'deep' in features2:
-            deep_sim = np.dot(features1['deep'], features2['deep']) / (
-                np.linalg.norm(features1['deep']) * np.linalg.norm(features2['deep']) + 1e-8
-            )
-            similarities.append(deep_sim)
-            weights.append(self.feature_weights['deep'])
-        
+            norm1 = np.linalg.norm(features1['deep'])
+            norm2 = np.linalg.norm(features2['deep'])
+
+            if norm1 > 1e-8 and norm2 > 1e-8:
+                deep_sim = np.dot(features1['deep'], features2['deep']) / (norm1 * norm2)
+
+                # Apply temperature scaling to sharpen the similarity
+                temperature = 0.5  # Lower temperature = sharper distribution
+                deep_sim_scaled = np.tanh(deep_sim / temperature)
+
+                # Deep feature confidence is high since they're L2 normalized
+                deep_conf = 0.95
+
+                similarities.append(deep_sim_scaled)
+                weights.append(self.feature_weights['deep'])
+                confidences.append(deep_conf)
+
         if not similarities:
             return 0.0
-        
-        # Weighted average
-        return np.average(similarities, weights=weights)
+
+        # Confidence-weighted fusion
+        similarities = np.array(similarities)
+        weights = np.array(weights)
+        confidences = np.array(confidences)
+
+        # Adjust weights based on confidence
+        adjusted_weights = weights * confidences
+        adjusted_weights = adjusted_weights / (np.sum(adjusted_weights) + 1e-8)
+
+        # Compute final similarity with geometric mean for robustness
+        weighted_sim = np.average(similarities, weights=adjusted_weights)
+
+        # Apply final confidence boost for high-quality matches
+        if len(similarities) >= 2 and np.min(similarities) > 0.6:
+            weighted_sim = weighted_sim * (1.0 + 0.1 * np.mean(confidences))
+
+        return np.clip(weighted_sim, 0.0, 1.0)
+
+    def compute_consensus_similarity(self, track_features_history: List[Dict[str, np.ndarray]],
+                                   candidate_features: Dict[str, np.ndarray],
+                                   consensus_threshold: int = 3) -> float:
+        """Compute similarity using consensus from multiple historical features"""
+        if len(track_features_history) == 0:
+            return 0.0
+
+        # Use the most recent features for consensus
+        recent_features = track_features_history[-min(len(track_features_history), consensus_threshold):]
+
+        feature_similarities = {'color_hist': [], 'hog': [], 'deep': []}
+
+        # Compute similarities against multiple historical features
+        for hist_features in recent_features:
+            for feature_type in ['color_hist', 'hog', 'deep']:
+                if feature_type in hist_features and feature_type in candidate_features:
+                    if feature_type == 'color_hist':
+                        # Bhattacharyya distance for color histograms
+                        hist_sim = cv2.compareHist(
+                            hist_features[feature_type].reshape(-1, 1),
+                            candidate_features[feature_type].reshape(-1, 1),
+                            cv2.HISTCMP_BHATTACHARYYA
+                        )
+                        sim_score = 1.0 - hist_sim
+                    else:
+                        # Cosine similarity for HOG and deep features
+                        norm1 = np.linalg.norm(hist_features[feature_type])
+                        norm2 = np.linalg.norm(candidate_features[feature_type])
+
+                        if norm1 > 1e-8 and norm2 > 1e-8:
+                            sim_score = np.dot(hist_features[feature_type], candidate_features[feature_type]) / (norm1 * norm2)
+                        else:
+                            sim_score = 0.0
+
+                    feature_similarities[feature_type].append(sim_score)
+
+        # Compute consensus scores
+        consensus_scores = {}
+        for feature_type, similarities in feature_similarities.items():
+            if len(similarities) > 0:
+                # Use robust statistics for consensus
+                similarities = np.array(similarities)
+
+                # Remove outliers (beyond 2 standard deviations)
+                if len(similarities) > 2:
+                    mean_sim = np.mean(similarities)
+                    std_sim = np.std(similarities)
+                    valid_sims = similarities[np.abs(similarities - mean_sim) <= 2 * std_sim]
+                    if len(valid_sims) > 0:
+                        similarities = valid_sims
+
+                # Consensus score: weighted average with confidence boost for consistency
+                mean_score = np.mean(similarities)
+                consistency = 1.0 - np.std(similarities) if len(similarities) > 1 else 1.0
+                consensus_scores[feature_type] = mean_score * (0.8 + 0.2 * consistency)
+
+        # Combine consensus scores using feature weights
+        if len(consensus_scores) == 0:
+            return 0.0
+
+        final_scores = []
+        final_weights = []
+
+        for feature_type, score in consensus_scores.items():
+            final_scores.append(score)
+            final_weights.append(self.feature_weights.get(feature_type, 0.33))
+
+        # Normalize weights
+        total_weight = sum(final_weights)
+        if total_weight > 0:
+            final_weights = [w / total_weight for w in final_weights]
+            consensus_similarity = np.average(final_scores, weights=final_weights)
+        else:
+            consensus_similarity = np.mean(final_scores)
+
+        # Boost score if all feature types agree (high consensus)
+        if len(consensus_scores) >= 2 and min(consensus_scores.values()) > 0.6:
+            consensus_similarity *= 1.1  # 10% boost for multi-modal agreement
+
+        return np.clip(consensus_similarity, 0.0, 1.0)
 
 class OcclusionHandler:
     """Handle target occlusion and re-identification"""
@@ -396,50 +680,188 @@ class OcclusionHandler:
             
         return search_regions
     
-    def match_detections(self, detections: sv.Detections, 
+    def match_detections(self, detections: sv.Detections,
                         image: np.ndarray,
                         feature_extractor: MultiModalFeatureExtractor,
                         appearance_threshold: float = 0.5,
                         iou_threshold: float = 0.3) -> Dict[int, int]:
-        """Match new detections with lost tracks"""
+        """Match new detections with lost tracks with temporal consistency validation"""
         matches = {}
-        
+
         if len(detections) == 0:
             return matches
-            
+
         for track_id, info in self.lost_tracks.items():
             search_region = info['search_region']
             template_features = info['features']
-            
+
             best_match_idx = -1
             best_match_score = 0.0
-            
+
             for det_idx in range(len(detections)):
                 # Get detection bbox
                 det_bbox = detections.xyxy[det_idx]
-                
+
                 # Check if detection is within search region
                 iou = self._compute_iou(det_bbox, search_region)
                 if iou < iou_threshold:
                     continue
-                    
+
                 # Extract appearance features
                 det_features = feature_extractor.extract_all_features(image, det_bbox)
-                
+
                 # Compute appearance similarity
                 appearance_score = feature_extractor.compute_similarity(template_features, det_features)
-                
-                # Combine spatial and appearance scores
-                combined_score = appearance_score * (1 + iou * 0.3)
-                
-                if combined_score > best_match_score and appearance_score > appearance_threshold:
+
+                # Temporal consistency check
+                temporal_score = self._compute_temporal_consistency(track_id, det_bbox, info)
+
+                # Geometric validation
+                geometric_score = self._validate_geometric_consistency(track_id, det_bbox, info)
+
+                # Combine spatial, appearance, temporal, and geometric scores
+                combined_score = (appearance_score * 0.5 +
+                                temporal_score * 0.2 +
+                                geometric_score * 0.2 +
+                                iou * 0.1)
+
+                # Apply adaptive threshold based on occlusion duration
+                frames_lost = info.get('frames_lost', 0)
+                adaptive_threshold = appearance_threshold * (1.0 - 0.01 * frames_lost)
+                adaptive_threshold = max(adaptive_threshold, 0.3)  # Minimum threshold
+
+                if combined_score > best_match_score and appearance_score > adaptive_threshold:
                     best_match_score = combined_score
                     best_match_idx = det_idx
-                    
+
             if best_match_idx >= 0:
                 matches[track_id] = best_match_idx
-                
+
         return matches
+
+    def _compute_temporal_consistency(self, track_id: int, current_bbox: np.ndarray,
+                                     track_info: Dict) -> float:
+        """Compute temporal consistency score for a potential match"""
+        if 'last_state' not in track_info:
+            return 0.5  # Neutral score
+
+        last_state = track_info['last_state']
+        frames_lost = track_info.get('frames_lost', 0)
+
+        # Compute size consistency
+        last_bbox = last_state.bbox
+        last_w, last_h = last_bbox[2] - last_bbox[0], last_bbox[3] - last_bbox[1]
+        curr_w, curr_h = current_bbox[2] - current_bbox[0], current_bbox[3] - current_bbox[1]
+
+        size_ratio = min(last_w, curr_w) / max(last_w, curr_w) if max(last_w, curr_w) > 0 else 0
+        size_score = size_ratio * min(last_h, curr_h) / max(last_h, curr_h) if max(last_h, curr_h) > 0 else 0
+
+        # Compute velocity consistency
+        velocity_score = 0.5
+        if hasattr(last_state, 'velocity') and len(last_state.velocity) >= 2:
+            predicted_center = np.array([
+                (last_bbox[0] + last_bbox[2]) / 2 + last_state.velocity[0] * frames_lost,
+                (last_bbox[1] + last_bbox[3]) / 2 + last_state.velocity[1] * frames_lost
+            ])
+
+            current_center = np.array([
+                (current_bbox[0] + current_bbox[2]) / 2,
+                (current_bbox[1] + current_bbox[3]) / 2
+            ])
+
+            distance = np.linalg.norm(predicted_center - current_center)
+            max_distance = np.sqrt(curr_w**2 + curr_h**2)  # Diagonal of bbox
+            velocity_score = max(0, 1.0 - distance / (max_distance + 1e-6))
+
+        # Weight by recency (more recent = more reliable)
+        temporal_weight = 1.0 / (1.0 + 0.1 * frames_lost)
+
+        return (size_score * 0.6 + velocity_score * 0.4) * temporal_weight
+
+    def _validate_geometric_consistency(self, track_id: int, current_bbox: np.ndarray,
+                                       track_info: Dict, frame_dt: float = 0.033) -> float:
+        """Advanced geometric validation for physically plausible matches"""
+        if 'last_state' not in track_info:
+            return 0.8  # Neutral score for new tracks
+
+        last_state = track_info['last_state']
+        frames_lost = track_info.get('frames_lost', 1)
+
+        # 1. Scale consistency validation
+        last_bbox = last_state.bbox
+        last_area = (last_bbox[2] - last_bbox[0]) * (last_bbox[3] - last_bbox[1])
+        curr_area = (current_bbox[2] - current_bbox[0]) * (current_bbox[3] - current_bbox[1])
+
+        scale_ratio = curr_area / (last_area + 1e-6)
+        # Physically plausible scale changes: 0.5x to 2x per second
+        max_scale_change = (2.0 ** (frames_lost * frame_dt)) if frames_lost > 0 else 2.0
+        min_scale_change = 1.0 / max_scale_change
+
+        scale_valid = min_scale_change <= scale_ratio <= max_scale_change
+        scale_score = 1.0 if scale_valid else max(0.0, 1.0 - abs(np.log2(scale_ratio)) * 0.3)
+
+        # 2. Aspect ratio consistency
+        last_aspect = (last_bbox[2] - last_bbox[0]) / (last_bbox[3] - last_bbox[1] + 1e-6)
+        curr_aspect = (current_bbox[2] - current_bbox[0]) / (current_bbox[3] - current_bbox[1] + 1e-6)
+
+        aspect_ratio = curr_aspect / (last_aspect + 1e-6)
+        # Objects rarely change aspect ratio dramatically
+        aspect_valid = 0.7 <= aspect_ratio <= 1.4
+        aspect_score = 1.0 if aspect_valid else max(0.0, 1.0 - abs(aspect_ratio - 1.0) * 0.5)
+
+        # 3. Maximum displacement validation
+        last_center = np.array([(last_bbox[0] + last_bbox[2]) / 2, (last_bbox[1] + last_bbox[3]) / 2])
+        curr_center = np.array([(current_bbox[0] + current_bbox[2]) / 2, (current_bbox[1] + current_bbox[3]) / 2])
+
+        displacement = np.linalg.norm(curr_center - last_center)
+
+        # Maximum plausible speed: 200 pixels per second (very generous for drone footage)
+        max_displacement = 200 * frames_lost * frame_dt
+
+        # If we have velocity info, use predicted position
+        if hasattr(last_state, 'velocity') and len(last_state.velocity) >= 2:
+            predicted_center = last_center + np.array(last_state.velocity) * frames_lost * frame_dt
+            predicted_displacement = np.linalg.norm(curr_center - predicted_center)
+            # Use the better of the two displacement measures
+            displacement = min(displacement, predicted_displacement)
+
+        displacement_valid = displacement <= max_displacement
+        displacement_score = 1.0 if displacement_valid else max(0.0, 1.0 - displacement / max_displacement)
+
+        # 4. Direction consistency (if velocity available)
+        direction_score = 0.8  # Default neutral score
+        if hasattr(last_state, 'velocity') and len(last_state.velocity) >= 2:
+            last_velocity = np.array(last_state.velocity)
+            if np.linalg.norm(last_velocity) > 1e-3:  # Object was moving
+                actual_movement = curr_center - last_center
+                if np.linalg.norm(actual_movement) > 1e-3:
+                    # Compute angle between predicted and actual movement
+                    predicted_movement = last_velocity * frames_lost * frame_dt
+
+                    cos_angle = np.dot(actual_movement, predicted_movement) / (
+                        np.linalg.norm(actual_movement) * np.linalg.norm(predicted_movement) + 1e-8
+                    )
+                    cos_angle = np.clip(cos_angle, -1.0, 1.0)
+                    angle_diff = np.arccos(cos_angle)
+
+                    # Allow up to 45 degrees deviation
+                    max_angle_diff = np.pi / 4
+                    direction_score = max(0.3, 1.0 - angle_diff / max_angle_diff)
+
+        # 5. Occlusion plausibility
+        occlusion_score = max(0.5, 1.0 - frames_lost * 0.02)  # Decay with longer occlusion
+
+        # Combine all geometric validations
+        geometric_scores = [scale_score, aspect_score, displacement_score, direction_score, occlusion_score]
+        weights = [0.25, 0.15, 0.3, 0.2, 0.1]
+
+        final_score = np.average(geometric_scores, weights=weights)
+
+        # Apply penalty for clearly invalid matches
+        if not (scale_valid and aspect_valid and displacement_valid):
+            final_score *= 0.5  # Heavy penalty for geometric violations
+
+        return np.clip(final_score, 0.0, 1.0)
     
     def _compute_iou(self, box1: np.ndarray, box2: np.ndarray) -> float:
         """Compute IoU between two bounding boxes"""
@@ -463,14 +885,41 @@ class OcclusionHandler:
 
 class RobustReidentificationSystem:
     """Main re-identification system that integrates with supervision library"""
-    
+
     def __init__(self, max_occlusion_frames: int = 30):
         self.tracks: Dict[int, Dict] = {}
         self.occlusion_handler = OcclusionHandler(max_occlusion_frames)
         self.feature_extractor = MultiModalFeatureExtractor()
         self.frame_count = 0
         self.last_timestamp = 0
-        
+
+        # Dynamic threshold adaptation
+        self.adaptive_thresholds = {
+            'base_threshold': 0.7,
+            'current_threshold': 0.7,
+            'min_threshold': 0.5,
+            'max_threshold': 0.85,
+            'adaptation_rate': 0.02,
+            'performance_window': deque(maxlen=50),  # Last 50 reidentification attempts
+            'success_rate_target': 0.7
+        }
+
+        # Environmental adaptation metrics
+        self.environment_metrics = {
+            'lighting_stability': deque(maxlen=30),
+            'motion_activity': deque(maxlen=30),
+            'occlusion_frequency': deque(maxlen=30),
+            'detection_confidence': deque(maxlen=30)
+        }
+
+        # Motion pattern learning
+        self.motion_patterns = {
+            'global_flow': deque(maxlen=100),  # Global motion flow patterns
+            'object_trajectories': {},         # Per-object trajectory patterns
+            'interaction_zones': {},           # Areas where objects frequently interact/occlude
+            'speed_profiles': {}               # Speed patterns per object class
+        }
+
         # Statistics
         self.stats = {
             'total_detections': 0,
@@ -479,8 +928,357 @@ class RobustReidentificationSystem:
             'new_tracks': 0,
             'lost_tracks': 0
         }
-        
-        print("✅ Robust re-identification system initialized!")
+
+        print("✅ Robust re-identification system with adaptive thresholds initialized!")
+
+    def _update_environment_metrics(self, image: np.ndarray, detections: sv.Detections):
+        """Update environmental metrics for adaptive thresholding"""
+        # 1. Lighting stability (based on image brightness variance)
+        gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        brightness_std = np.std(gray_image)
+        lighting_stability = max(0, 1.0 - brightness_std / 100.0)  # Normalize
+        self.environment_metrics['lighting_stability'].append(lighting_stability)
+
+        # 2. Motion activity (based on number of active tracks)
+        active_tracks = len(set(detections.tracker_id[detections.tracker_id != None])) if len(detections) > 0 else 0
+        motion_activity = min(1.0, active_tracks / 10.0)  # Normalize to 0-1
+        self.environment_metrics['motion_activity'].append(motion_activity)
+
+        # 3. Occlusion frequency (based on lost tracks ratio)
+        total_tracks = len(self.tracks)
+        lost_tracks = len(self.occlusion_handler.lost_tracks)
+        occlusion_freq = lost_tracks / (total_tracks + 1e-6)
+        self.environment_metrics['occlusion_frequency'].append(occlusion_freq)
+
+        # 4. Detection confidence (average confidence of current detections)
+        if len(detections) > 0 and hasattr(detections, 'confidence'):
+            avg_confidence = np.mean(detections.confidence)
+        else:
+            avg_confidence = 0.5  # Neutral
+        self.environment_metrics['detection_confidence'].append(avg_confidence)
+
+    def _adapt_threshold(self):
+        """Adapt similarity threshold based on recent performance and environment"""
+        performance_window = self.adaptive_thresholds['performance_window']
+
+        if len(performance_window) < 10:  # Need minimum samples
+            return
+
+        # Calculate recent success rate
+        recent_success_rate = sum(performance_window) / len(performance_window)
+        target_rate = self.adaptive_thresholds['success_rate_target']
+
+        # Environmental factors
+        lighting_stability = np.mean(self.environment_metrics['lighting_stability']) if self.environment_metrics['lighting_stability'] else 0.5
+        motion_activity = np.mean(self.environment_metrics['motion_activity']) if self.environment_metrics['motion_activity'] else 0.5
+        occlusion_freq = np.mean(self.environment_metrics['occlusion_frequency']) if self.environment_metrics['occlusion_frequency'] else 0.3
+        detection_confidence = np.mean(self.environment_metrics['detection_confidence']) if self.environment_metrics['detection_confidence'] else 0.5
+
+        # Calculate environmental difficulty score (0 = easy, 1 = difficult)
+        difficulty = (
+            (1.0 - lighting_stability) * 0.3 +  # Poor lighting = more difficult
+            motion_activity * 0.2 +             # High motion = more difficult
+            occlusion_freq * 0.3 +              # High occlusion = more difficult
+            (1.0 - detection_confidence) * 0.2  # Low confidence = more difficult
+        )
+
+        # Adapt threshold based on performance and environment
+        current_threshold = self.adaptive_thresholds['current_threshold']
+        adaptation_rate = self.adaptive_thresholds['adaptation_rate']
+
+        if recent_success_rate < target_rate:
+            # Performance below target - lower threshold to increase matches
+            adjustment = -adaptation_rate * (1.0 + difficulty)  # Larger adjustment in difficult conditions
+        else:
+            # Performance above target - raise threshold to increase precision
+            adjustment = adaptation_rate * (1.0 - difficulty * 0.5)  # Smaller adjustment in difficult conditions
+
+        # Update threshold with bounds checking
+        new_threshold = current_threshold + adjustment
+        new_threshold = np.clip(new_threshold,
+                               self.adaptive_thresholds['min_threshold'],
+                               self.adaptive_thresholds['max_threshold'])
+
+        self.adaptive_thresholds['current_threshold'] = new_threshold
+
+        # Log adaptation (every 30 frames)
+        if self.frame_count % 30 == 0:
+            print(f"🎯 Adaptive threshold: {new_threshold:.3f} "
+                  f"(success: {recent_success_rate:.2f}, difficulty: {difficulty:.2f})")
+
+    def _get_adaptive_threshold(self, class_name: str = None) -> float:
+        """Get current adaptive threshold for a specific object class"""
+        base_threshold = self.adaptive_thresholds['current_threshold']
+
+        # Class-specific adjustments
+        class_adjustments = {
+            'person': 0.05,     # People are more distinctive
+            'car': 0.0,         # Baseline
+            'truck': -0.05,     # Trucks are less distinctive
+            'bicycle': 0.02,    # Bicycles are fairly distinctive
+            'motorcycle': 0.03  # Motorcycles are quite distinctive
+        }
+
+        adjustment = class_adjustments.get(class_name, 0.0)
+        return np.clip(base_threshold + adjustment, 0.4, 0.9)
+
+    def _learn_motion_patterns(self, detections: sv.Detections):
+        """Learn and update motion patterns from current detections"""
+        if len(detections) == 0:
+            return
+
+        current_centers = []
+        current_velocities = []
+
+        # Extract motion data from active tracks
+        for i, track_id in enumerate(detections.tracker_id):
+            if track_id is not None and track_id in self.tracks:
+                bbox = detections.xyxy[i]
+                center = np.array([(bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2])
+                current_centers.append(center)
+
+                # Get velocity from track history
+                track = self.tracks[track_id]
+                if 'predictor' in track:
+                    state = track['predictor'].get_state()
+                    velocity = state[2:4]  # [vx, vy]
+                    current_velocities.append(velocity)
+
+                    # Update object trajectory patterns
+                    class_name = track.get('class_name', 'unknown')
+                    if class_name not in self.motion_patterns['object_trajectories']:
+                        self.motion_patterns['object_trajectories'][class_name] = deque(maxlen=1000)
+
+                    trajectory_point = {
+                        'center': center,
+                        'velocity': velocity,
+                        'timestamp': self.last_timestamp,
+                        'speed': np.linalg.norm(velocity)
+                    }
+                    self.motion_patterns['object_trajectories'][class_name].append(trajectory_point)
+
+                    # Update speed profiles
+                    if class_name not in self.motion_patterns['speed_profiles']:
+                        self.motion_patterns['speed_profiles'][class_name] = deque(maxlen=200)
+
+                    self.motion_patterns['speed_profiles'][class_name].append(np.linalg.norm(velocity))
+
+        # Learn global motion flow
+        if len(current_centers) >= 2:
+            # Calculate overall motion direction and magnitude
+            centers = np.array(current_centers)
+            velocities = np.array(current_velocities[:len(current_centers)])
+
+            if len(velocities) > 0:
+                avg_velocity = np.mean(velocities, axis=0)
+                motion_magnitude = np.linalg.norm(avg_velocity)
+
+                flow_data = {
+                    'avg_velocity': avg_velocity,
+                    'magnitude': motion_magnitude,
+                    'num_objects': len(current_centers),
+                    'timestamp': self.last_timestamp
+                }
+                self.motion_patterns['global_flow'].append(flow_data)
+
+        # Detect interaction zones (areas with high occlusion rates)
+        if len(self.occlusion_handler.lost_tracks) > 0:
+            for track_id, track_info in self.occlusion_handler.lost_tracks.items():
+                if 'last_state' in track_info:
+                    last_center = np.array([
+                        (track_info['last_state'].bbox[0] + track_info['last_state'].bbox[2]) / 2,
+                        (track_info['last_state'].bbox[1] + track_info['last_state'].bbox[3]) / 2
+                    ])
+
+                    # Discretize position for zone analysis (divide image into 10x10 grid)
+                    zone_x = int(last_center[0] / 64)  # Assuming ~640px width
+                    zone_y = int(last_center[1] / 48)  # Assuming ~480px height
+                    zone_key = f"{zone_x}_{zone_y}"
+
+                    if zone_key not in self.motion_patterns['interaction_zones']:
+                        self.motion_patterns['interaction_zones'][zone_key] = {
+                            'occlusion_count': 0,
+                            'center': last_center,
+                            'objects': set()
+                        }
+
+                    self.motion_patterns['interaction_zones'][zone_key]['occlusion_count'] += 1
+                    self.motion_patterns['interaction_zones'][zone_key]['objects'].add(track_id)
+
+    def _predict_from_motion_patterns(self, track_id: int, frames_ahead: int = 5) -> Optional[np.ndarray]:
+        """Predict future position using learned motion patterns"""
+        if track_id not in self.tracks:
+            return None
+
+        track = self.tracks[track_id]
+        class_name = track.get('class_name', 'unknown')
+
+        # Get current state
+        if 'predictor' not in track:
+            return None
+
+        current_state = track['predictor'].get_state()
+        current_pos = current_state[:2]
+        current_vel = current_state[2:4]
+
+        # Use class-specific motion patterns for prediction
+        if class_name in self.motion_patterns['object_trajectories']:
+            trajectories = list(self.motion_patterns['object_trajectories'][class_name])
+
+            if len(trajectories) > 10:  # Need sufficient data
+                # Find similar motion contexts
+                similar_trajectories = []
+                current_speed = np.linalg.norm(current_vel)
+
+                for traj in trajectories[-50:]:  # Use recent trajectories
+                    traj_speed = traj['speed']
+                    # Find trajectories with similar speed
+                    if abs(traj_speed - current_speed) < current_speed * 0.3:  # Within 30%
+                        similar_trajectories.append(traj)
+
+                if len(similar_trajectories) > 5:
+                    # Predict based on similar motion patterns
+                    similar_velocities = [traj['velocity'] for traj in similar_trajectories]
+                    avg_velocity = np.mean(similar_velocities, axis=0)
+
+                    # Blend current velocity with learned pattern
+                    prediction_velocity = 0.7 * current_vel + 0.3 * avg_velocity
+                    predicted_pos = current_pos + prediction_velocity * frames_ahead * 0.033  # Assuming 30 FPS
+
+                    return predicted_pos
+
+        # Fallback to simple kinematic prediction
+        predicted_pos = current_pos + current_vel * frames_ahead * 0.033
+        return predicted_pos
+
+    def _get_motion_confidence(self, track_id: int, predicted_pos: np.ndarray, actual_pos: np.ndarray) -> float:
+        """Calculate confidence in motion prediction based on historical accuracy"""
+        if track_id not in self.tracks:
+            return 0.5
+
+        track = self.tracks[track_id]
+        class_name = track.get('class_name', 'unknown')
+
+        # Calculate prediction error
+        prediction_error = np.linalg.norm(predicted_pos - actual_pos)
+
+        # Get typical speeds for this object class
+        if class_name in self.motion_patterns['speed_profiles']:
+            speeds = list(self.motion_patterns['speed_profiles'][class_name])
+            if len(speeds) > 5:
+                avg_speed = np.mean(speeds)
+                speed_std = np.std(speeds)
+
+                # Normalize error by typical motion scale
+                normalized_error = prediction_error / (avg_speed * 0.033 + 1e-6)  # One frame displacement
+
+                # Convert to confidence (0-1)
+                confidence = max(0.0, 1.0 - normalized_error)
+                return confidence
+
+        # Default confidence based on error magnitude
+        return max(0.0, 1.0 - prediction_error / 100.0)  # Assume 100px is very poor prediction
+
+    def _cross_validate_match(self, track_id: int, det_idx: int, detections: sv.Detections,
+                             image: np.ndarray, base_score: float) -> Tuple[bool, float]:
+        """Perform comprehensive cross-validation for a potential match"""
+        if track_id not in self.tracks:
+            return False, 0.0
+
+        track = self.tracks[track_id]
+        det_bbox = detections.xyxy[det_idx]
+
+        validation_scores = []
+        validation_weights = []
+
+        # 1. Multi-temporal validation (compare against multiple historical features)
+        if 'feature_history' in track and len(track['feature_history']) >= 2:
+            temporal_scores = []
+            candidate_features = self.feature_extractor.extract_all_features(image, det_bbox)
+
+            for hist_features in track['feature_history']:
+                hist_score = self.feature_extractor.compute_similarity(hist_features, candidate_features)
+                temporal_scores.append(hist_score)
+
+            # Robust temporal score (use median to reduce outlier impact)
+            temporal_score = np.median(temporal_scores) if len(temporal_scores) > 0 else 0.5
+            validation_scores.append(temporal_score)
+            validation_weights.append(0.4)
+
+        # 2. Motion prediction validation
+        predicted_pos = self._predict_from_motion_patterns(track_id, frames_ahead=1)
+        if predicted_pos is not None:
+            actual_center = np.array([(det_bbox[0] + det_bbox[2]) / 2, (det_bbox[1] + det_bbox[3]) / 2])
+            motion_confidence = self._get_motion_confidence(track_id, predicted_pos, actual_center)
+            validation_scores.append(motion_confidence)
+            validation_weights.append(0.3)
+
+        # 3. Scale consistency validation
+        if 'history' in track and len(track['history']) > 0:
+            last_state = track['history'][-1]
+            last_bbox = last_state.bbox
+
+            last_area = (last_bbox[2] - last_bbox[0]) * (last_bbox[3] - last_bbox[1])
+            curr_area = (det_bbox[2] - det_bbox[0]) * (det_bbox[3] - det_bbox[1])
+
+            scale_ratio = curr_area / (last_area + 1e-6)
+            # Expect reasonable scale changes (0.5x to 2x)
+            scale_score = 1.0 if 0.5 <= scale_ratio <= 2.0 else max(0.0, 1.0 - abs(np.log2(scale_ratio)) * 0.5)
+            validation_scores.append(scale_score)
+            validation_weights.append(0.2)
+
+        # 4. Class consistency validation
+        if hasattr(detections, 'class_id') and detections.class_id[det_idx] is not None:
+            det_class_id = detections.class_id[det_idx]
+            track_class = track.get('class_name', 'unknown')
+
+            # Convert class ID to name for comparison
+            coco_classes = [
+                'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck'
+            ]
+            det_class_name = coco_classes[det_class_id] if 0 <= det_class_id < len(coco_classes) else 'unknown'
+
+            class_score = 1.0 if det_class_name == track_class else 0.0
+            validation_scores.append(class_score)
+            validation_weights.append(0.1)
+
+        # 5. Interaction zone awareness
+        det_center = np.array([(det_bbox[0] + det_bbox[2]) / 2, (det_bbox[1] + det_bbox[3]) / 2])
+        zone_x = int(det_center[0] / 64)
+        zone_y = int(det_center[1] / 48)
+        zone_key = f"{zone_x}_{zone_y}"
+
+        if zone_key in self.motion_patterns['interaction_zones']:
+            zone_info = self.motion_patterns['interaction_zones'][zone_key]
+            # High-occlusion zones require higher confidence
+            occlusion_penalty = min(0.2, zone_info['occlusion_count'] * 0.01)
+            zone_score = 1.0 - occlusion_penalty
+        else:
+            zone_score = 1.0  # No penalty for unknown zones
+
+        validation_scores.append(zone_score)
+        validation_weights.append(0.1)
+
+        # Compute final cross-validation score
+        if len(validation_scores) == 0:
+            return True, base_score  # No validation data available
+
+        # Normalize weights
+        total_weight = sum(validation_weights)
+        if total_weight > 0:
+            validation_weights = [w / total_weight for w in validation_weights]
+            cross_val_score = np.average(validation_scores, weights=validation_weights)
+        else:
+            cross_val_score = np.mean(validation_scores)
+
+        # Combine with base score
+        final_score = (base_score * 0.6 + cross_val_score * 0.4)
+
+        # Apply strict validation threshold
+        min_cross_val_threshold = 0.6
+        is_valid = (cross_val_score >= min_cross_val_threshold and final_score >= 0.65)
+
+        return is_valid, final_score
     
     def initialize_track(self, track_id: int, bbox: np.ndarray, 
                          image: np.ndarray, timestamp: float, class_name: str = None):
@@ -532,13 +1330,36 @@ class RobustReidentificationSystem:
         state = track['predictor'].get_state()
         velocity = state[2:4]
         
-        # Update features (keep a running average)
+        # Update features with improved multi-frame averaging and history tracking
         new_features = self.feature_extractor.extract_all_features(image, bbox)
+
+        # Store feature history for consensus matching
+        if 'feature_history' not in track:
+            track['feature_history'] = deque(maxlen=5)  # Keep last 5 feature sets
+
+        track['feature_history'].append(new_features.copy())
+
         for key in new_features:
             if key in track['features']:
-                # Exponential moving average
-                alpha = 0.1
-                track['features'][key] = (1 - alpha) * track['features'][key] + alpha * new_features[key]
+                # Adaptive exponential moving average based on feature type
+                if key == 'deep':
+                    alpha = 0.15  # Slower update for deep features (more stable)
+                elif key == 'hog':
+                    alpha = 0.12  # Moderate update for HOG features
+                else:  # color_hist
+                    alpha = 0.25  # Faster update for color (changes quickly)
+
+                # Quality-weighted averaging - give more weight to higher quality features
+                new_norm = np.linalg.norm(new_features[key])
+                old_norm = np.linalg.norm(track['features'][key])
+
+                if new_norm > 1e-8 and old_norm > 1e-8:
+                    quality_weight = new_norm / (new_norm + old_norm)
+                    adaptive_alpha = alpha * (0.5 + quality_weight)
+                    track['features'][key] = ((1 - adaptive_alpha) * track['features'][key] +
+                                            adaptive_alpha * new_features[key])
+                else:
+                    track['features'][key] = new_features[key]
             else:
                 track['features'][key] = new_features[key]
         
@@ -578,10 +1399,55 @@ class RobustReidentificationSystem:
         # Predict search regions
         search_regions = self.occlusion_handler.predict_search_regions(dt)
         
-        # Match detections
+        # Match detections with enhanced consensus approach
         matches = self.occlusion_handler.match_detections(
             detections, image, self.feature_extractor
         )
+
+        # Apply consensus validation with adaptive thresholds and cross-validation
+        validated_matches = {}
+        for track_id, det_idx in matches.items():
+            if track_id in self.tracks and 'feature_history' in self.tracks[track_id]:
+                # Extract features for the candidate detection
+                det_bbox = detections.xyxy[det_idx]
+                candidate_features = self.feature_extractor.extract_all_features(image, det_bbox)
+
+                # Use consensus similarity for validation
+                consensus_score = self.feature_extractor.compute_consensus_similarity(
+                    list(self.tracks[track_id]['feature_history']),
+                    candidate_features,
+                    consensus_threshold=3
+                )
+
+                # Get adaptive threshold for this track's class
+                track_class = self.tracks[track_id].get('class_name', 'default')
+                adaptive_threshold = self._get_adaptive_threshold(track_class)
+
+                # Apply cross-validation for additional verification
+                is_valid, final_score = self._cross_validate_match(track_id, det_idx, detections, image, consensus_score)
+
+                # Final decision based on both consensus and cross-validation
+                if consensus_score > adaptive_threshold and is_valid:
+                    validated_matches[track_id] = det_idx
+                    # Record success for adaptation
+                    self.adaptive_thresholds['performance_window'].append(1.0)
+                    print(f"🎯 Validated match: Track {track_id} (consensus: {consensus_score:.3f}, "
+                          f"final: {final_score:.3f}, thresh: {adaptive_threshold:.3f})")
+                else:
+                    # Record failure for adaptation
+                    self.adaptive_thresholds['performance_window'].append(0.0)
+                    if consensus_score > adaptive_threshold:
+                        print(f"❌ Cross-validation failed: Track {track_id} (consensus: {consensus_score:.3f}, "
+                              f"final: {final_score:.3f})")
+            else:
+                # No history available, use original match with basic validation
+                is_valid, final_score = self._cross_validate_match(track_id, det_idx, detections, image, 0.7)
+                if is_valid:
+                    validated_matches[track_id] = det_idx
+                    # Record neutral result
+                    self.adaptive_thresholds['performance_window'].append(0.5)
+
+        matches = validated_matches
         
         # Update matched tracks
         for track_id, det_idx in matches.items():
@@ -642,10 +1508,18 @@ class RobustReidentificationSystem:
         if matches:
             print(f"🔄 Re-identified {len(matches)} tracks: {list(matches.keys())}")
         
+        # Update environmental metrics and adapt thresholds
+        self._update_environment_metrics(image, detections)
+        if self.frame_count % 10 == 0:  # Adapt threshold every 10 frames
+            self._adapt_threshold()
+
+        # Learn motion patterns from current frame
+        self._learn_motion_patterns(detections)
+
         self.frame_count += 1
         self.last_timestamp = timestamp
         self.stats['total_detections'] += len(detections)
-        
+
         return detections
     
     def get_statistics(self) -> Dict[str, Any]:

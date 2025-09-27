@@ -12,6 +12,16 @@ export interface TrackingObject {
   confidence: number;
   bbox: BoundingBox;
   center?: { x: number; y: number };
+  is_reidentified?: boolean;
+  velocity?: VelocityVector;
+}
+
+export interface VelocityVector {
+  vx: number;
+  vy: number;
+  speed: number;
+  direction: number | null;
+  delta_time?: number | null;
 }
 
 export interface FrameDetections {
@@ -44,4 +54,69 @@ export interface DetectionData {
   bbox_y2: number;
   center_x: number;
   center_y: number;
+}
+
+export interface DroneMetadata {
+  timestamp: number;
+  latitude: number;
+  longitude: number;
+  altitude: number;
+  roll: number;
+  pitch: number;
+  yaw: number;
+  gimbal_elevation: number;
+  gimbal_azimuth: number;
+  vfov: number;
+  hfov: number;
+}
+
+export interface EnhancedTelemetryPoint {
+  timestamp: number;
+  latitude: number;
+  longitude: number;
+  altitude: number;
+  roll: number;
+  pitch: number;
+  yaw: number;
+  gimbal_elevation: number;
+  gimbal_azimuth: number;
+  center_latitude: number;
+  center_longitude: number;
+  center_elevation?: number;
+  slant_range: number;
+  hfov: number;
+  vfov: number;
+  footprint?: number[][]; // [lon, lat] polygon coordinates
+}
+
+export interface FlightAnalytics {
+  total_distance: number;
+  max_altitude: number;
+  min_altitude: number;
+  avg_speed: number;
+  max_speed: number;
+  flight_duration: number;
+  coverage_area: number;
+  stability_metrics: {
+    roll_variance: number;
+    pitch_variance: number;
+    yaw_variance: number;
+  };
+}
+
+export interface EnhancedTelemetryData {
+  telemetry: EnhancedTelemetryPoint[];
+  analytics: FlightAnalytics | null;
+}
+
+export interface ReidentificationStats {
+  total_reidentifications: number;
+  active_tracks: number;
+  lost_tracks: number;
+  success_rate: number;
+}
+
+export interface SessionWithMetadata extends Session {
+  metadata?: DroneMetadata[];
+  enhanced_telemetry?: EnhancedTelemetryData;
 }
