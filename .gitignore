@@ -98,3 +98,5 @@ databases/
 
 # Output frames
 output_frames/*
+
+*.jpg
