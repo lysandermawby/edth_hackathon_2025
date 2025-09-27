@@ -233,7 +233,6 @@ function App() {
     return url;
   };
 
-
   return (
     <div className="min-h-screen bg-cyber-black">
       {/* Header Navigation */}
@@ -541,14 +540,14 @@ function App() {
 
               {selectedSession && !loading && (
                 <VideoMapViewer
-                    session={selectedSession}
-                    trackingData={trackingData}
-                    videoSrc={getVideoUrl(selectedSession)}
-                    onRegenerateDetections={regenerateDetections}
-                    isGeneratingDetections={isGeneratingDetections}
-                    generationMessage={generationMessage}
-                    generationError={generationError}
-                  />
+                  session={selectedSession}
+                  trackingData={trackingData}
+                  videoSrc={getVideoUrl(selectedSession)}
+                  onRegenerateDetections={regenerateDetections}
+                  isGeneratingDetections={isGeneratingDetections}
+                  generationMessage={generationMessage}
+                  generationError={generationError}
+                />
               )}
 
               {!selectedSession && !loading && (
