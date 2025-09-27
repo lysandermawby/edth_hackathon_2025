@@ -5,7 +5,13 @@ import {
   HiChartBar,
   HiLocationMarker,
   HiServer,
+  HiPlay,
+  HiBookOpen,
+  HiLink,
+  HiMap,
+  HiAdjustments,
 } from "react-icons/hi";
+import { MdGpsFixed, MdAnalytics } from "react-icons/md";
 import { RiLiveLine, RiDashboardFill, RiFileListLine } from "react-icons/ri";
 import VideoMapViewer from "./VideoMapViewer";
 import RealtimeVideoCanvas from "./RealtimeVideoCanvas";
@@ -424,6 +430,95 @@ function App() {
                       <HiRefresh className="w-4 h-4" />
                       Refresh
                     </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Start Guide */}
+              <div className="cyber-card mt-6">
+                <div className="cyber-card-header">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-cyber-surface border-2 border-neon-green flex items-center justify-center shadow-cyber-green">
+                      <HiBookOpen className="text-neon-green text-sm text-glow" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-neon-green text-glow">
+                        &gt;&gt; QUICK_START.EXE
+                      </h3>
+                      <p className="text-xs text-cyber-muted font-mono">
+                        [INTERFACE_GUIDE_v1.0]
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-4">
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <h4 className="font-medium text-neon-cyan flex items-center gap-2 font-mono text-sm">
+                        <span className="w-5 h-5 bg-cyber-surface border border-neon-cyan flex items-center justify-center text-xs font-bold">
+                          1
+                        </span>
+                        VIDEO_CTRL
+                      </h4>
+                      <ul className="space-y-1 text-xs text-cyber-muted font-mono">
+                        <li className="flex items-start gap-2">
+                          <HiPlay className="text-neon-cyan w-3 h-3 mt-0.5 flex-shrink-0" />
+                          <span>PLAY/PAUSE_TOGGLE</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <HiLocationMarker className="text-neon-cyan w-3 h-3 mt-0.5 flex-shrink-0" />
+                          <span>TIMELINE_SEEK</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <MdGpsFixed className="text-neon-cyan w-3 h-3 mt-0.5 flex-shrink-0" />
+                          <span>HOVER_DETECT_INFO</span>
+                        </li>
+                      </ul>
+                    </div>
+                    <div className="space-y-2">
+                      <h4 className="font-medium text-neon-pink flex items-center gap-2 font-mono text-sm">
+                        <span className="w-5 h-5 bg-cyber-surface border border-neon-pink flex items-center justify-center text-xs font-bold">
+                          2
+                        </span>
+                        MAP_CTRL
+                      </h4>
+                      <ul className="space-y-1 text-xs text-cyber-muted font-mono">
+                        <li className="flex items-start gap-2">
+                          <HiLink className="text-neon-pink w-3 h-3 mt-0.5 flex-shrink-0" />
+                          <span>SYNC_TOGGLE</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <HiMap className="text-neon-pink w-3 h-3 mt-0.5 flex-shrink-0" />
+                          <span>ZOOM_PAN</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <HiAdjustments className="text-neon-pink w-3 h-3 mt-0.5 flex-shrink-0" />
+                          <span>FOOTPRINT_VIEW</span>
+                        </li>
+                      </ul>
+                    </div>
+                    <div className="space-y-2">
+                      <h4 className="font-medium text-neon-yellow flex items-center gap-2 font-mono text-sm">
+                        <span className="w-5 h-5 bg-cyber-surface border border-neon-yellow flex items-center justify-center text-xs font-bold">
+                          3
+                        </span>
+                        ANALYSIS_MOD
+                      </h4>
+                      <ul className="space-y-1 text-xs text-cyber-muted font-mono">
+                        <li className="flex items-start gap-2">
+                          <HiChartBar className="text-neon-yellow w-3 h-3 mt-0.5 flex-shrink-0" />
+                          <span>TELEMETRY_LIVE</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <HiAdjustments className="text-neon-yellow w-3 h-3 mt-0.5 flex-shrink-0" />
+                          <span>FRAME_MANUAL</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <MdAnalytics className="text-neon-yellow w-3 h-3 mt-0.5 flex-shrink-0" />
+                          <span>ANALYTICS_VIEW</span>
+                        </li>
+                      </ul>
+                    </div>
                   </div>
                 </div>
               </div>

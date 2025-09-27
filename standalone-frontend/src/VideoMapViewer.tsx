@@ -7,11 +7,7 @@ import {
   HiChartBar,
   HiWifi,
   HiLocationMarker,
-  HiPlay,
-  HiBookOpen,
-  HiAdjustments,
 } from "react-icons/hi";
-import { MdGpsFixed, MdAnalytics } from "react-icons/md";
 import VideoCanvas from "./VideoCanvas";
 import DroneMapViewer from "./DroneMapViewer";
 import type { FrameDetections, DroneMetadata, SessionWithMetadata } from "./types";
@@ -450,97 +446,6 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
           </div>
         </div>
       )}
-
-      {/* User Guide */}
-      <div className="card">
-        <div className="card-header">
-          <div className="flex items-center gap-3">
-            <div className="w-6 h-6 bg-primary-600 rounded flex items-center justify-center">
-              <HiBookOpen className="text-white text-sm" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-tactical-text">
-                Quick Start Guide
-              </h3>
-              <p className="text-xs text-tactical-muted">
-                Learn how to use the interface effectively
-              </p>
-            </div>
-          </div>
-        </div>
-        <div className="card-body">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="space-y-3">
-              <h4 className="font-medium text-tactical-text flex items-center gap-2">
-                <span className="w-5 h-5 bg-primary-100 text-primary-600 rounded-full flex items-center justify-center text-xs font-bold">
-                  1
-                </span>
-                Video Controls
-              </h4>
-              <ul className="space-y-2 text-sm text-tactical-muted">
-                <li className="flex items-start gap-2">
-                  <HiPlay className="text-primary-500 w-4 h-4 mt-0.5 flex-shrink-0" />
-                  <span>Click Play/Pause to control video playback</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <HiLocationMarker className="text-primary-500 w-4 h-4 mt-0.5 flex-shrink-0" />
-                  <span>
-                    Use the timeline slider to seek to specific moments
-                  </span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <MdGpsFixed className="text-primary-500 w-4 h-4 mt-0.5 flex-shrink-0" />
-                  <span>Hover over detected objects for details</span>
-                </li>
-              </ul>
-            </div>
-            <div className="space-y-3">
-              <h4 className="font-medium text-tactical-text flex items-center gap-2">
-                <span className="w-5 h-5 bg-secondary-100 text-secondary-600 rounded-full flex items-center justify-center text-xs font-bold">
-                  2
-                </span>
-                Map Controls
-              </h4>
-              <ul className="space-y-2 text-sm text-tactical-muted">
-                <li className="flex items-start gap-2">
-                  <HiLink className="text-secondary-500 w-4 h-4 mt-0.5 flex-shrink-0" />
-                  <span>Toggle sync to link map with video timeline</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <HiMap className="text-secondary-500 w-4 h-4 mt-0.5 flex-shrink-0" />
-                  <span>Zoom and pan the map for better visibility</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <HiAdjustments className="text-secondary-500 w-4 h-4 mt-0.5 flex-shrink-0" />
-                  <span>View camera footprints and flight paths</span>
-                </li>
-              </ul>
-            </div>
-            <div className="space-y-3">
-              <h4 className="font-medium text-tactical-text flex items-center gap-2">
-                <span className="w-5 h-5 bg-success-100 text-success-600 rounded-full flex items-center justify-center text-xs font-bold">
-                  3
-                </span>
-                Analysis Features
-              </h4>
-              <ul className="space-y-2 text-sm text-tactical-muted">
-                <li className="flex items-start gap-2">
-                  <HiChartBar className="text-success-500 w-4 h-4 mt-0.5 flex-shrink-0" />
-                  <span>Monitor live telemetry data in real-time</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <HiAdjustments className="text-success-500 w-4 h-4 mt-0.5 flex-shrink-0" />
-                  <span>Use manual frame control for precise analysis</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <MdAnalytics className="text-success-500 w-4 h-4 mt-0.5 flex-shrink-0" />
-                  <span>View flight analytics and coverage metrics</span>
-                </li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   );
 };
