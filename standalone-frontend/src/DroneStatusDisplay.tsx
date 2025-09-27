@@ -96,7 +96,7 @@ const DroneStatusDisplay: React.FC<DroneStatusDisplayProps> = ({
             </div>
             <div>
               <h3 className="font-semibold text-cyber-muted">
-                &gt;&gt; TELEMETRY.EXE
+                &gt;&gt; TELEMETRY
               </h3>
               <p className="text-xs text-cyber-muted font-mono">[OFFLINE]</p>
             </div>
@@ -123,7 +123,7 @@ const DroneStatusDisplay: React.FC<DroneStatusDisplayProps> = ({
           </div>
           <div>
             <h3 className="font-semibold text-neon-cyan text-glow">
-              &gt;&gt; TELEMETRY.EXE
+              &gt;&gt; TELEMETRY
             </h3>
             <p className="text-xs text-cyber-muted font-mono">
               [ATTITUDE_TRACKER_v2.0]
@@ -134,7 +134,11 @@ const DroneStatusDisplay: React.FC<DroneStatusDisplayProps> = ({
       <div className="p-4">
         <div className="space-y-4">
           {/* Attitude, Gimbal & Enhanced Telemetry Layout */}
-          <div className={`grid gap-4 ${hasEnhancedTelemetry ? 'grid-cols-3' : 'grid-cols-2'}`}>
+          <div
+            className={`grid gap-4 ${
+              hasEnhancedTelemetry ? "grid-cols-3" : "grid-cols-2"
+            }`}
+          >
             {/* Attitude Section */}
             <div>
               <h4 className="font-medium text-neon-cyan flex items-center gap-2 font-mono text-sm mb-2">
@@ -207,7 +211,9 @@ const DroneStatusDisplay: React.FC<DroneStatusDisplayProps> = ({
                       {session.enhanced_telemetry.telemetry.length}
                     </div>
                   </div>
-                  <div className="text-xs text-neon-green font-mono mt-1">GPS_PTS</div>
+                  <div className="text-xs text-neon-green font-mono mt-1">
+                    GPS_PTS
+                  </div>
                 </div>
                 <div className="mt-2 space-y-1 text-xs font-mono">
                   {session.enhanced_telemetry.analytics && (
@@ -215,25 +221,38 @@ const DroneStatusDisplay: React.FC<DroneStatusDisplayProps> = ({
                       <div className="flex justify-between">
                         <span className="text-cyber-muted">DUR:</span>
                         <span className="text-neon-green">
-                          {session.enhanced_telemetry.analytics.flight_duration.toFixed(1)}s
+                          {session.enhanced_telemetry.analytics.flight_duration.toFixed(
+                            1
+                          )}
+                          s
                         </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-cyber-muted">DIST:</span>
                         <span className="text-neon-green">
-                          {session.enhanced_telemetry.analytics.total_distance.toFixed(0)}m
+                          {session.enhanced_telemetry.analytics.total_distance.toFixed(
+                            0
+                          )}
+                          m
                         </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-cyber-muted">SPD:</span>
                         <span className="text-neon-green">
-                          {session.enhanced_telemetry.analytics.avg_speed.toFixed(1)}m/s
+                          {session.enhanced_telemetry.analytics.avg_speed.toFixed(
+                            1
+                          )}
+                          m/s
                         </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-cyber-muted">AREA:</span>
                         <span className="text-neon-green">
-                          {(session.enhanced_telemetry.analytics.coverage_area / 10000).toFixed(1)}ha
+                          {(
+                            session.enhanced_telemetry.analytics.coverage_area /
+                            10000
+                          ).toFixed(1)}
+                          ha
                         </span>
                       </div>
                     </>

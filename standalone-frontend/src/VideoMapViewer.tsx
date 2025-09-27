@@ -314,22 +314,24 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="text-xs text-tactical-muted font-medium">VIDEO</div>
-                    <div className="px-2 py-1 bg-primary-100 text-primary-700 rounded text-xs">
-                      {duration > 0
-                        ? ((currentVideoTime / duration) * 100).toFixed(1)
-                        : 0}
-                      %
+                    <div className="text-sm font-mono text-tactical-text">
+                      {formatTime(currentVideoTime)} / {formatTime(duration)}
                     </div>
                   </div>
-                  <div className="text-sm font-mono text-tactical-text">
-                    {formatTime(currentVideoTime)} / {formatTime(duration)}
+                  <div className="px-2 py-1 bg-primary-100 text-primary-700 rounded text-xs text-center">
+                    {duration > 0
+                      ? ((currentVideoTime / duration) * 100).toFixed(1)
+                      : 0}
+                    %
                   </div>
                 </div>
 
                 {/* Column 3: Map Info */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <div className="text-xs text-tactical-muted font-medium">MAP</div>
+                    <div className="text-xs text-tactical-muted font-medium">
+                      MAP
+                    </div>
                     <div className="text-sm font-mono text-tactical-text">
                       {mapFrame}/{actualMetadata.length - 1}
                     </div>
