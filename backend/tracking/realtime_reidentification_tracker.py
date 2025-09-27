@@ -7,27 +7,68 @@ for robust object tracking with occlusion handling in real-time scenarios.
 """
 
 import os
+import sys
 import argparse
-import cv2
-import supervision as sv
-from ultralytics import YOLO
-import numpy as np
+import traceback
 import time
 import json
 import traceback
 from datetime import datetime
 import threading
 import queue
-from database_integration import TrackingDatabase, RealTimeDataProcessor
+from datetime import datetime
+
+# Import core dependencies with error handling
+try:
+    import cv2
+except ImportError as e:
+    print(f"Error: OpenCV not available: {e}")
+    print("Please install opencv-python: pip install opencv-python")
+    sys.exit(1)
+
+try:
+    import supervision as sv
+except ImportError as e:
+    print(f"Error: supervision not available: {e}")
+    print("Please install supervision: pip install supervision")
+    sys.exit(1)
+
+try:
+    from ultralytics import YOLO
+except ImportError as e:
+    print(f"Error: ultralytics not available: {e}")
+    print("Please install ultralytics: pip install ultralytics")
+    sys.exit(1)
+
+try:
+    import numpy as np
+except ImportError as e:
+    print(f"Error: numpy not available: {e}")
+    print("Please install numpy: pip install numpy")
+    sys.exit(1)
+
+# Import local modules
+try:
+    from database_integration import TrackingDatabase, RealTimeDataProcessor  # type: ignore
+except ImportError as e:
+    print(f"Error: Could not import database_integration: {e}")
+    print("Please ensure database_integration.py is in the same directory")
+    print(f"Current directory: {os.getcwd()}")
+    print(f"Script directory: {os.path.dirname(os.path.abspath(__file__))}")
+    sys.exit(1)
 
 # Import the robust re-identification system
 import sys
+import importlib.util
+
+# Add the reidentify module to the path
 reidentify_path = os.path.join(os.path.dirname(__file__), '..', 'reidentify')
 if reidentify_path not in sys.path:
     sys.path.append(reidentify_path)
 
+# Try to import the robust re-identification system
 try:
-    from robust_reidentification import RobustReidentificationSystem
+    from robust_reidentification import RobustReidentificationSystem  # type: ignore
 except ImportError as e:
     print("Warning: Could not import robust_reidentification module")
     print("Please ensure the reidentify module is in the correct location")

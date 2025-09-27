@@ -33,18 +33,25 @@ warnings.filterwarnings('ignore')
 
 # Try to import optional dependencies
 try:
-    from filterpy.kalman import KalmanFilter
+    from filterpy.kalman import KalmanFilter  # type: ignore
     KALMAN_AVAILABLE = True
 except ImportError:
     KALMAN_AVAILABLE = False
     print("Warning: filterpy not available. Kalman filtering will use simplified implementation.")
+    # Create a dummy KalmanFilter class for type hints
+    class KalmanFilter:  # type: ignore
+        def __init__(self, *args, **kwargs):
+            raise NotImplementedError("filterpy.kalman.KalmanFilter not available")
 
 try:
-    from skimage.feature import hog
+    from skimage.feature import hog  # type: ignore
     HOG_AVAILABLE = True
 except ImportError:
     HOG_AVAILABLE = False
     print("Warning: scikit-image not available. HOG features will be disabled.")
+    # Create a dummy hog function for type hints
+    def hog(*args, **kwargs):  # type: ignore
+        raise NotImplementedError("skimage.feature.hog not available")
 
 @dataclass
 class TrackState:
