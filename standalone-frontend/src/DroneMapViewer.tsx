@@ -526,12 +526,14 @@ const DroneMapViewer: React.FC<DroneMapViewerProps> = ({
             <strong>Frame:</strong> {currentFrame}/{metadata.length}
           </div>
           {currentVelocity && currentVelocity.heading !== null && (
-            <div>
-              <strong>Speed:</strong> {currentVelocity.speed.toFixed(1)} m/s
-              <span className="ml-2">
+            <>
+              <div>
+                <strong>Speed:</strong> {currentVelocity.speed.toFixed(1)} m/s
+              </div>
+              <div>
                 <strong>Heading:</strong> {currentVelocity.heading.toFixed(0)}°
-              </span>
-            </div>
+              </div>
+            </>
           )}
         </div>
       </div>
@@ -540,7 +542,7 @@ const DroneMapViewer: React.FC<DroneMapViewerProps> = ({
       <MapContainer
         center={getMapCenter()}
         zoom={mapZoom}
-        className="w-full h-full rounded-lg"
+        className="w-full h-3/4 rounded-lg"
         ref={mapRef}
       >
         <MapController center={getMapCenter()} zoom={mapZoom} />

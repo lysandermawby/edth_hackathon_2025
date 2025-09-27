@@ -379,7 +379,6 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
             </div>
           </div>
           <div className="card-body space-y-4">
-
             {/* Basic GPS Info */}
             {!hasEnhancedTelemetry &&
               session.metadata &&

@@ -160,17 +160,22 @@ const VideoCanvas: React.FC<VideoCanvasProps> = ({
   onTimeUpdate,
   onDurationLoad,
 }) => {
-
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const animationRef = useRef<number | null>(null);
   const lastFrameIndexRef = useRef(0);
-  const preparedDataRef = useRef<PreparedTrackingData>({ frames: [], fps: 30, hasDetections: false });
+  const preparedDataRef = useRef<PreparedTrackingData>({
+    frames: [],
+    fps: 30,
+    hasDetections: false,
+  });
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
-  const [hoveredObject, setHoveredObject] = useState<TrackingObject | null>(null);
+  const [hoveredObject, setHoveredObject] = useState<TrackingObject | null>(
+    null
+  );
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [isSeeking, setIsSeeking] = useState(false);
 
@@ -276,7 +281,10 @@ const VideoCanvas: React.FC<VideoCanvasProps> = ({
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
         // Only draw detections if we have tracking data
-        if (preparedDataRef.current.frames && preparedDataRef.current.frames.length > 0) {
+        if (
+          preparedDataRef.current.frames &&
+          preparedDataRef.current.frames.length > 0
+        ) {
           const frame = findFrameForTime(
             video.currentTime,
             preparedDataRef.current.frames,
@@ -338,7 +346,10 @@ const VideoCanvas: React.FC<VideoCanvasProps> = ({
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
       // Only draw detections if we have tracking data
-      if (preparedDataRef.current.frames && preparedDataRef.current.frames.length > 0) {
+      if (
+        preparedDataRef.current.frames &&
+        preparedDataRef.current.frames.length > 0
+      ) {
         const frame = findFrameForTime(
           video.currentTime,
           preparedDataRef.current.frames,
@@ -379,7 +390,10 @@ const VideoCanvas: React.FC<VideoCanvasProps> = ({
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
                 // Only draw detections if we have tracking data
-                if (preparedDataRef.current.frames && preparedDataRef.current.frames.length > 0) {
+                if (
+                  preparedDataRef.current.frames &&
+                  preparedDataRef.current.frames.length > 0
+                ) {
                   const frame = findFrameForTime(
                     video.currentTime,
                     preparedDataRef.current.frames,
@@ -435,7 +449,7 @@ const VideoCanvas: React.FC<VideoCanvasProps> = ({
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
-    
+
     const x = (event.clientX - rect.left) * scaleX;
     const y = (event.clientY - rect.top) * scaleY;
 
@@ -513,7 +527,6 @@ const VideoCanvas: React.FC<VideoCanvasProps> = ({
         </span>
       </div>
 
-
       {/* Detection Tooltip */}
       {hoveredObject && (
         <div
@@ -521,7 +534,10 @@ const VideoCanvas: React.FC<VideoCanvasProps> = ({
           style={{
             left: mousePosition.x + 10,
             top: mousePosition.y - 10,
-            transform: mousePosition.x > window.innerWidth - 200 ? 'translateX(-100%)' : 'none'
+            transform:
+              mousePosition.x > window.innerWidth - 200
+                ? "translateX(-100%)"
+                : "none",
           }}
         >
           <div className="bg-gray-900 text-white rounded-lg shadow-xl border border-gray-600 p-3 max-w-xs">
@@ -531,34 +547,43 @@ const VideoCanvas: React.FC<VideoCanvasProps> = ({
               </div>
               {hoveredObject.tracker_id && (
                 <div className="text-gray-300">
-                  <span className="text-green-400">ID:</span> #{hoveredObject.tracker_id}
+                  <span className="text-green-400">ID:</span> #
+                  {hoveredObject.tracker_id}
                 </div>
               )}
               <div className="text-gray-300">
-                <span className="text-yellow-400">Confidence:</span> {Math.round(hoveredObject.confidence * 100)}%
+                <span className="text-yellow-400">Confidence:</span>{" "}
+                {Math.round(hoveredObject.confidence * 100)}%
               </div>
               {hoveredObject.bbox && (
                 <>
                   <div className="text-gray-300">
-                    <span className="text-purple-400">Position:</span> ({Math.round(hoveredObject.bbox.x1)}, {Math.round(hoveredObject.bbox.y1)})
+                    <span className="text-purple-400">Position:</span> (
+                    {Math.round(hoveredObject.bbox.x1)},{" "}
+                    {Math.round(hoveredObject.bbox.y1)})
                   </div>
                   <div className="text-gray-300">
-                    <span className="text-orange-400">Size:</span> {Math.round(hoveredObject.bbox.x2 - hoveredObject.bbox.x1)} × {Math.round(hoveredObject.bbox.y2 - hoveredObject.bbox.y1)}
+                    <span className="text-orange-400">Size:</span>{" "}
+                    {Math.round(hoveredObject.bbox.x2 - hoveredObject.bbox.x1)}{" "}
+                    ×{" "}
+                    {Math.round(hoveredObject.bbox.y2 - hoveredObject.bbox.y1)}
                   </div>
                 </>
               )}
               {hoveredObject.center && (
                 <div className="text-gray-300">
-                  <span className="text-cyan-400">Center:</span> ({Math.round(hoveredObject.center.x)}, {Math.round(hoveredObject.center.y)})
+                  <span className="text-cyan-400">Center:</span> (
+                  {Math.round(hoveredObject.center.x)},{" "}
+                  {Math.round(hoveredObject.center.y)})
                 </div>
               )}
             </div>
             {/* Arrow pointing to the object */}
-            <div 
+            <div
               className="absolute w-0 h-0 border-l-[6px] border-r-[6px] border-t-[6px] border-l-transparent border-r-transparent border-t-gray-900"
               style={{
-                left: '20px',
-                bottom: '-6px'
+                left: "20px",
+                bottom: "-6px",
               }}
             />
           </div>
