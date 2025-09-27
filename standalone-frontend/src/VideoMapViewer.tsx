@@ -198,7 +198,7 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div className="text-center">
                   <div className="text-lg font-bold text-primary-600">
                     {trackingData.length}
@@ -213,6 +213,14 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
                   </div>
                   <div className="text-xs text-tactical-muted">
                     With Detections
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-lg font-bold text-neon-cyan">
+                    {trackingData.reduce((acc, f) => acc + f.objects.length, 0)}
+                  </div>
+                  <div className="text-xs text-tactical-muted">
+                    Total Objects
                   </div>
                 </div>
                 <div className="text-center">
@@ -345,6 +353,8 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
                 ? actualMetadata[mapFrame]
                 : undefined
             }
+            hasEnhancedTelemetry={hasEnhancedTelemetry}
+            session={session}
           />
         </div>
       </div>
@@ -369,56 +379,6 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
             </div>
           </div>
           <div className="card-body space-y-4">
-            {/* Enhanced Telemetry Info */}
-            {hasEnhancedTelemetry && (
-              <div className="p-3 bg-success-50 border border-success-200 rounded-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <HiWifi className="text-success-600 w-4 h-4" />
-                  <span className="text-sm font-medium text-success-800">
-                    Enhanced Telemetry Active
-                  </span>
-                </div>
-                <div className="text-xs text-success-700">
-                  {session.enhanced_telemetry!.telemetry.length} GPS points •
-                  Camera footprints • Flight analytics
-                </div>
-                {session.enhanced_telemetry!.analytics && (
-                  <div className="mt-2 text-xs text-success-700 space-y-1">
-                    <div>
-                      Duration:{" "}
-                      {session.enhanced_telemetry!.analytics.flight_duration.toFixed(
-                        1
-                      )}
-                      s • Distance:{" "}
-                      {session.enhanced_telemetry!.analytics.total_distance.toFixed(
-                        0
-                      )}
-                      m • Speed:{" "}
-                      {session.enhanced_telemetry!.analytics.avg_speed.toFixed(
-                        1
-                      )}
-                      m/s
-                    </div>
-                    <div>
-                      Coverage:{" "}
-                      {(
-                        session.enhanced_telemetry!.analytics.coverage_area /
-                        10000
-                      ).toFixed(1)}{" "}
-                      hectares • Altitude:{" "}
-                      {session.enhanced_telemetry!.analytics.min_altitude.toFixed(
-                        0
-                      )}
-                      -
-                      {session.enhanced_telemetry!.analytics.max_altitude.toFixed(
-                        0
-                      )}
-                      m
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
 
             {/* Basic GPS Info */}
             {!hasEnhancedTelemetry &&

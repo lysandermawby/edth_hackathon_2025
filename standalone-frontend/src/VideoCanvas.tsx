@@ -513,18 +513,6 @@ const VideoCanvas: React.FC<VideoCanvasProps> = ({
         </span>
       </div>
 
-      {preparedData.hasDetections && (
-        <div className="text-sm text-gray-600">
-          <p>
-            📊 Total frames with detections:{" "}
-            {preparedData.frames.filter((f) => f.objects.length > 0).length}
-          </p>
-          <p>
-            🎯 Total objects detected:{" "}
-            {preparedData.frames.reduce((acc, f) => acc + f.objects.length, 0)}
-          </p>
-        </div>
-      )}
 
       {/* Detection Tooltip */}
       {hoveredObject && (

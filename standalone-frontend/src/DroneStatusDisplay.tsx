@@ -1,15 +1,19 @@
 import React from "react";
-import { HiCube, HiLocationMarker } from "react-icons/hi";
+import { HiCube, HiLocationMarker, HiWifi } from "react-icons/hi";
 import type { DroneMetadata } from "./types";
 
 interface DroneStatusDisplayProps {
   metadata?: DroneMetadata;
   className?: string;
+  hasEnhancedTelemetry?: boolean;
+  session?: any; // SessionWithMetadata type
 }
 
 const DroneStatusDisplay: React.FC<DroneStatusDisplayProps> = ({
   metadata,
   className = "",
+  hasEnhancedTelemetry = false,
+  session,
 }) => {
   const formatAngle = (angle?: number) => (angle || 0).toFixed(1);
   const formatAltitude = (alt?: number) => (alt || 0).toFixed(1);
@@ -129,8 +133,8 @@ const DroneStatusDisplay: React.FC<DroneStatusDisplayProps> = ({
       </div>
       <div className="p-4">
         <div className="space-y-4">
-          {/* Attitude & Gimbal Horizontal Layout */}
-          <div className="grid grid-cols-2 gap-4">
+          {/* Attitude, Gimbal & Enhanced Telemetry Layout */}
+          <div className={`grid gap-4 ${hasEnhancedTelemetry ? 'grid-cols-3' : 'grid-cols-2'}`}>
             {/* Attitude Section */}
             <div>
               <h4 className="font-medium text-neon-cyan flex items-center gap-2 font-mono text-sm mb-2">
@@ -189,6 +193,54 @@ const DroneStatusDisplay: React.FC<DroneStatusDisplayProps> = ({
                 </div>
               </div>
             </div>
+
+            {/* Enhanced Telemetry Section */}
+            {hasEnhancedTelemetry && session?.enhanced_telemetry && (
+              <div>
+                <h4 className="font-medium text-neon-green flex items-center gap-2 font-mono text-sm mb-2">
+                  <HiWifi className="text-neon-green w-3 h-3" />
+                  ENHANCED
+                </h4>
+                <div className="text-center">
+                  <div className="w-16 h-16 bg-cyber-surface border border-neon-green mx-auto flex items-center justify-center">
+                    <div className="text-lg font-bold text-neon-green">
+                      {session.enhanced_telemetry.telemetry.length}
+                    </div>
+                  </div>
+                  <div className="text-xs text-neon-green font-mono mt-1">GPS_PTS</div>
+                </div>
+                <div className="mt-2 space-y-1 text-xs font-mono">
+                  {session.enhanced_telemetry.analytics && (
+                    <>
+                      <div className="flex justify-between">
+                        <span className="text-cyber-muted">DUR:</span>
+                        <span className="text-neon-green">
+                          {session.enhanced_telemetry.analytics.flight_duration.toFixed(1)}s
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-cyber-muted">DIST:</span>
+                        <span className="text-neon-green">
+                          {session.enhanced_telemetry.analytics.total_distance.toFixed(0)}m
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-cyber-muted">SPD:</span>
+                        <span className="text-neon-green">
+                          {session.enhanced_telemetry.analytics.avg_speed.toFixed(1)}m/s
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-cyber-muted">AREA:</span>
+                        <span className="text-neon-green">
+                          {(session.enhanced_telemetry.analytics.coverage_area / 10000).toFixed(1)}ha
+                        </span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Additional Data */}
