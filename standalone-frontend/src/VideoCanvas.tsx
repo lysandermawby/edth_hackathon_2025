@@ -509,9 +509,9 @@ const VideoCanvas: React.FC<VideoCanvasProps> = ({
       <div className="flex flex-wrap items-center gap-4">
         <button
           onClick={togglePlayback}
-          className="px-4 py-2 rounded-lg bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md hover:from-primary-600 hover:to-primary-700 transition-all duration-200"
+          className="px-4 py-2 bg-neon-cyan text-cyber-black font-bold font-mono uppercase tracking-wider transition-all duration-200 border border-neon-cyan hover:bg-neon-cyan/80 shadow-cyber"
         >
-          {isPlaying ? "Pause" : "Play"}
+          {isPlaying ? "PAUSE" : "PLAY"}
         </button>
         <input
           type="range"
@@ -520,9 +520,9 @@ const VideoCanvas: React.FC<VideoCanvasProps> = ({
           step={0.033}
           value={currentTime}
           onChange={handleSeek}
-          className="flex-1"
+          className="flex-1 h-2 bg-cyber-surface border border-cyber-border appearance-none cursor-pointer cyber-slider"
         />
-        <span className="text-sm text-gray-600 min-w-[120px] text-right">
+        <span className="text-sm text-neon-cyan font-mono min-w-[120px] text-right">
           {formatTime(currentTime)} / {formatTime(duration)}
         </span>
       </div>

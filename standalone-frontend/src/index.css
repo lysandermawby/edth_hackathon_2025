@@ -281,6 +281,47 @@
     box-shadow: 0 0 10px rgba(255, 255, 0, 0.3);
   }
   
+  /* Cyber Range Slider */
+  .cyber-slider {
+    background: transparent;
+  }
+  
+  .cyber-slider::-webkit-slider-track {
+    @apply bg-cyber-surface border border-cyber-border;
+    height: 8px;
+    border-radius: 0;
+  }
+  
+  .cyber-slider::-webkit-slider-thumb {
+    @apply bg-neon-cyan border border-neon-cyan;
+    appearance: none;
+    height: 16px;
+    width: 16px;
+    border-radius: 0;
+    cursor: pointer;
+    box-shadow: 0 0 5px rgba(0, 255, 255, 0.8);
+  }
+  
+  .cyber-slider::-webkit-slider-thumb:hover {
+    @apply bg-neon-cyan;
+    box-shadow: 0 0 10px rgba(0, 255, 255, 1);
+  }
+  
+  .cyber-slider::-moz-range-track {
+    @apply bg-cyber-surface border border-cyber-border;
+    height: 8px;
+    border-radius: 0;
+  }
+  
+  .cyber-slider::-moz-range-thumb {
+    @apply bg-neon-cyan border border-neon-cyan;
+    height: 16px;
+    width: 16px;
+    border-radius: 0;
+    cursor: pointer;
+    box-shadow: 0 0 5px rgba(0, 255, 255, 0.8);
+  }
+  
   /* Loading spinner */
   .cyber-spinner {
     width: 20px;
