@@ -13,16 +13,24 @@
   html {
     background: #000000;
     font-family: 'JetBrains Mono', 'Courier New', monospace;
+    overflow-x: hidden; /* Prevent horizontal scrollbar */
   }
   
   body {
     @apply bg-cyber-black text-neon-cyan font-mono;
+    min-height: 133.33vh; /* Accommodate scaled content */
+    overflow-x: hidden;
     background-image: 
       linear-gradient(rgba(0, 255, 255, 0.02) 1px, transparent 1px),
       linear-gradient(90deg, rgba(0, 255, 255, 0.02) 1px, transparent 1px);
     background-size: 20px 20px;
     margin: 0;
     padding: 0;
+    overflow-x: hidden;
+  }
+
+  #root {
+    min-height: 133.33vh; /* Accommodate scaled content */
     overflow-x: hidden;
   }
   
@@ -76,9 +84,8 @@
   .app-scaled {
     transform: scale(0.75);
     transform-origin: top left;
-    width: 133.33%; /* 100% / 0.75 = 133.33% */
-    height: 133.33%;
-    overflow-x: hidden; /* Prevent horizontal scrollbar */
+    width: 133.33vw; /* Use viewport width */
+    min-height: 133.33vh; /* Use viewport height */
   }
 
   /* Main UI Elements */
