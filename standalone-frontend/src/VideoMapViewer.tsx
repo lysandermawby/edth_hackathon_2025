@@ -128,10 +128,62 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Sync Control & Telemetry Panel */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        {/* Sync Controls */}
-        <div className="xl:col-span-1">
+      {/* Two Column Layout: Session/Sync Controls + Telemetry */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        {/* Left Column: Session Info + Sync Controls */}
+        <div className="space-y-6">
+          {/* Session Details */}
+          <div className="card">
+            <div className="card-header">
+              <div className="flex items-center gap-3">
+                <div className="w-6 h-6 bg-primary-600 rounded flex items-center justify-center">
+                  <HiVideoCamera className="text-white text-sm" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-tactical-text">
+                    Session Details
+                  </h3>
+                  <p className="text-xs text-tactical-muted">
+                    {session.video_path.split("/").pop()}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="p-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="text-center">
+                  <div className="text-lg font-bold text-primary-600">
+                    {trackingData.length}
+                  </div>
+                  <div className="text-xs text-tactical-muted">Total Frames</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-lg font-bold text-success-600">
+                    {trackingData.filter((f) => f.objects.length > 0).length}
+                  </div>
+                  <div className="text-xs text-tactical-muted">With Detections</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-lg font-bold text-warning-600">
+                    {new Set(
+                      trackingData.flatMap((f) =>
+                        f.objects.map((o) => o.tracker_id).filter(Boolean)
+                      )
+                    ).size}
+                  </div>
+                  <div className="text-xs text-tactical-muted">Objects Tracked</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-lg font-bold text-secondary-600">
+                    {session.fps || "N/A"}
+                  </div>
+                  <div className="text-xs text-tactical-muted">FPS</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Sync Controls */}
           <div className="card">
             <div className="card-header">
               <div className="flex items-center gap-3">
@@ -144,7 +196,7 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
               </div>
             </div>
             <div className="p-4">
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div className="space-y-4">
                 <div className="flex items-center gap-6">
                   <div className="flex items-center gap-3">
                     <input
@@ -183,31 +235,35 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
                   )}
                 </div>
 
-                <div className="text-sm text-tactical-muted space-y-1">
-                  <div className="flex items-center gap-2">
+                <div className="text-sm text-tactical-muted space-y-2">
+                  <div className="flex items-center justify-between">
                     <span className="font-medium">Video:</span>
-                    <span className="font-mono">
-                      {formatTime(currentVideoTime)} / {formatTime(duration)}
-                    </span>
-                    <span className="px-2 py-1 bg-primary-100 text-primary-700 rounded text-xs">
-                      {duration > 0
-                        ? ((currentVideoTime / duration) * 100).toFixed(1)
-                        : 0}
-                      %
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono">
+                        {formatTime(currentVideoTime)} / {formatTime(duration)}
+                      </span>
+                      <span className="px-2 py-1 bg-primary-100 text-primary-700 rounded text-xs">
+                        {duration > 0
+                          ? ((currentVideoTime / duration) * 100).toFixed(1)
+                          : 0}
+                        %
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-between">
                     <span className="font-medium">Map:</span>
-                    <span className="font-mono">
-                      {mapFrame}/{actualMetadata.length - 1}
-                    </span>
-                    {actualMetadata.length > 0 &&
-                      mapFrame < actualMetadata.length && (
-                        <span className="px-2 py-1 bg-secondary-100 text-secondary-700 rounded text-xs">
-                          GPS#{mapFrame} @{" "}
-                          {actualMetadata[mapFrame].timestamp.toFixed(2)}s
-                        </span>
-                      )}
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono">
+                        {mapFrame}/{actualMetadata.length - 1}
+                      </span>
+                      {actualMetadata.length > 0 &&
+                        mapFrame < actualMetadata.length && (
+                          <span className="px-2 py-1 bg-secondary-100 text-secondary-700 rounded text-xs">
+                            GPS#{mapFrame} @{" "}
+                            {actualMetadata[mapFrame].timestamp.toFixed(2)}s
+                          </span>
+                        )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -215,8 +271,8 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
           </div>
         </div>
 
-        {/* Drone Telemetry */}
-        <div className="xl:col-span-2">
+        {/* Right Column: Drone Telemetry */}
+        <div>
           <DroneStatusDisplay
             metadata={
               hasRealGpsData && mapFrame < actualMetadata.length
@@ -247,24 +303,6 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
             </div>
           </div>
           <div className="card-body space-y-4">
-            {/* Video Metadata */}
-            <div className="grid grid-cols-2 gap-4 p-3 bg-neutral-50 rounded-lg">
-              <div className="text-center">
-                <div className="text-lg font-bold text-primary-600">
-                  {trackingData.length}
-                </div>
-                <div className="text-xs text-tactical-muted">Frames</div>
-              </div>
-              <div className="text-center">
-                <div className="text-lg font-bold text-success-600">
-                  {trackingData.reduce(
-                    (acc, frame) => acc + frame.objects.length,
-                    0
-                  )}
-                </div>
-                <div className="text-xs text-tactical-muted">Detections</div>
-              </div>
-            </div>
 
             {/* Enhanced Telemetry Info */}
             {hasEnhancedTelemetry && (
