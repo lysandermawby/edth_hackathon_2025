@@ -78,7 +78,36 @@ logs/
 *.temp
 
 # Data & Models
-data/
+data/*
+!data/__init__.py
+!data/README.md
+!data/example_time_config.json
+# Ignore metadata files
+data/metadata/
+# Allow specific tracking data files (but not all JSON)
+!data/*_tracking_data.json
+# Ignore large video files and binary data
+data/*.mp4
+data/*.avi
+data/*.mov
+data/*.mkv
+data/*.ts
+data/*.m4v
+data/*.webm
+data/*.db
+data/*.sqlite
+data/*.sqlite3
+data/*.mcap
+data/*.bag
+data/*.bag2
+# Ignore cropped videos directory
+data/cropped_videos/
+# Ignore intermediate/obsolete JSON files
+data/*_output_*.json
+data/*_short_*.json
+data/Individual_*.json
+data/Cropped_Vid_*.json
+data/tracking_short_*.json
 *.pt
 
 # Tauri GUI

@@ -1,0 +1,23 @@
+{
+    "videos": [
+        {
+            "video_path": "../../data/quantum_drone_flight/2025_09_17-15_02_07_MovingObjects_44.ts",
+            "data_path": "../../data/quantum_drone_flight/metadata.csv",
+            "time_ranges": [
+                {
+                    "start_time": 55.0,
+                    "end_time": 80.0
+                },
+                {
+                    "start_time": 173.0,
+                    "end_time": 193.0
+                },
+                {
+                    "start_time": 301.0,
+                    "end_time": 316.0
+                }
+            ]
+        }
+    ],
+    "_comment": "Time ranges are specified in SECONDS (not frames). The script will create organized output in data/cropped_videos/{video_name}/segment_{i}_{start}s-{end}s/ (in the project root's data directory)"
+}
