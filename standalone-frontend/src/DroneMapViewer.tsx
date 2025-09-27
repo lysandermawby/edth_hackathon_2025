@@ -283,6 +283,16 @@ const DroneMapViewer: React.FC<DroneMapViewerProps> = ({
   const [showCameraFootprints, setShowCameraFootprints] =
     useState(showFootprints);
   const mapRef = useRef<L.Map | null>(null);
+
+  // Force map to resize when container dimensions change
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (mapRef.current) {
+        mapRef.current.invalidateSize();
+      }
+    }, 100);
+    return () => clearTimeout(timer);
+  }, []);
   const prevVelocityRef = useRef<VelocityState>({
     vx: 0,
     vy: 0,
