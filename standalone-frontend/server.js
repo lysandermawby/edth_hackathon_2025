@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import sqlite3 from "sqlite3";
 import path from "path";
+import fs from "fs";
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -70,6 +71,158 @@ app.get("/api/sessions/:sessionId/detections", (req, res) => {
       return;
     }
     res.json(rows);
+  });
+});
+
+// Get GPS metadata for a specific session
+app.get("/api/sessions/:sessionId/metadata", (req, res) => {
+  const sessionId = parseInt(req.params.sessionId);
+
+  if (isNaN(sessionId)) {
+    res.status(400).json({ error: "Invalid session ID" });
+    return;
+  }
+
+  // First get the session to get the video path
+  const sessionQuery = `
+    SELECT video_path, fps
+    FROM tracking_sessions
+    WHERE session_id = ?
+  `;
+
+  db.get(sessionQuery, [sessionId], (err, session) => {
+    if (err) {
+      console.error("Database error:", err);
+      res.status(500).json({ error: "Failed to fetch session" });
+      return;
+    }
+
+    if (!session) {
+      res.status(404).json({ error: "Session not found" });
+      return;
+    }
+
+    // Extract session name from video path to find corresponding CSV files
+    const videoPath = session.video_path;
+    const sessionName = path.basename(videoPath, path.extname(videoPath));
+
+    // Look for CSV files in the data directory that match this session
+    const dataDir = path.join(__dirname, "..", "data");
+
+    console.log(`Looking for GPS metadata for session: ${sessionName}`);
+    console.log(`Video path: ${videoPath}`);
+
+    // Try to find CSV files in subdirectories
+    try {
+      const findMetadataFiles = (dir) => {
+        const csvFiles = [];
+        const items = fs.readdirSync(dir);
+
+        console.log(`Searching in directory: ${dir}`);
+        console.log(`Found items: ${items.join(', ')}`);
+
+        for (const item of items) {
+          const itemPath = path.join(dir, item);
+          const stat = fs.statSync(itemPath);
+
+          if (stat.isDirectory()) {
+            console.log(`Checking directory: ${item}`);
+
+            // Check if this directory contains the video file
+            if (videoPath.includes(item)) {
+              console.log(`Found matching directory: ${item}`);
+
+              // Look for CSV files in this directory and its subdirectories
+              const searchInDir = (searchDir) => {
+                try {
+                  const subItems = fs.readdirSync(searchDir);
+                  console.log(`Searching in subdirectory: ${searchDir}, items: ${subItems.join(', ')}`);
+
+                  for (const subItem of subItems) {
+                    const subItemPath = path.join(searchDir, subItem);
+                    const subStat = fs.statSync(subItemPath);
+
+                    if (subItem.endsWith('.csv')) {
+                      console.log(`Found CSV file: ${subItemPath}`);
+                      csvFiles.push(subItemPath);
+                    } else if (subStat.isDirectory()) {
+                      // Recursively search subdirectories
+                      searchInDir(subItemPath);
+                    }
+                  }
+                } catch (err) {
+                  console.log(`Error reading directory ${searchDir}: ${err.message}`);
+                }
+              };
+
+              searchInDir(itemPath);
+            }
+          }
+        }
+        return csvFiles;
+      };
+
+      const metadataFiles = findMetadataFiles(dataDir);
+
+      if (metadataFiles.length === 0) {
+        res.status(404).json({ error: "No GPS metadata found for this session" });
+        return;
+      }
+
+      // Parse the first CSV file found (or combine multiple if needed)
+      const csvFile = metadataFiles[0];
+      console.log(`Loading GPS metadata from: ${csvFile}`);
+
+      const csvContent = fs.readFileSync(csvFile, 'utf8');
+      const lines = csvContent.trim().split('\n');
+
+      if (lines.length < 2) {
+        res.status(404).json({ error: "Invalid CSV file format" });
+        return;
+      }
+
+      const headers = lines[0].split(',');
+      const metadata = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        const values = lines[i].split(',');
+        if (values.length === headers.length) {
+          const entry = {};
+          headers.forEach((header, index) => {
+            const value = values[index];
+            // Convert numeric fields
+            if (['timestamp', 'vfov', 'hfov', 'roll', 'pitch', 'yaw', 'latitude', 'longitude', 'altitude', 'gimbal_elevation', 'gimbal_azimuth'].includes(header)) {
+              entry[header] = parseFloat(value);
+            } else {
+              entry[header] = value;
+            }
+          });
+          metadata.push(entry);
+        }
+      }
+
+      // Convert to the format expected by the frontend
+      const convertedMetadata = metadata.map((entry, index) => ({
+        timestamp: index, // Use frame index as timestamp for now
+        latitude: entry.latitude,
+        longitude: entry.longitude,
+        altitude: entry.altitude,
+        roll: entry.roll,
+        pitch: entry.pitch,
+        yaw: entry.yaw,
+        gimbal_elevation: entry.gimbal_elevation,
+        gimbal_azimuth: entry.gimbal_azimuth,
+        vfov: entry.vfov,
+        hfov: entry.hfov
+      }));
+
+      console.log(`Loaded ${convertedMetadata.length} GPS metadata entries`);
+      res.json(convertedMetadata);
+
+    } catch (error) {
+      console.error("Error reading GPS metadata:", error);
+      res.status(500).json({ error: "Failed to read GPS metadata files" });
+    }
   });
 });
 

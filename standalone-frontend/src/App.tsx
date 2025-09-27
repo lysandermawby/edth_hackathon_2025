@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from "react";
-import VideoCanvas from "./VideoCanvas";
+import { useState, useEffect } from "react";
+import VideoMapViewer from "./VideoMapViewer";
 import RealtimeVideoCanvas from "./RealtimeVideoCanvas";
-import type { Session, FrameDetections, DetectionData } from "./types";
+import type { Session, FrameDetections, DetectionData, SessionWithMetadata } from "./types";
 
 function App() {
   const [sessions, setSessions] = useState<Session[]>([]);
-  const [selectedSession, setSelectedSession] = useState<Session | null>(null);
+  const [selectedSession, setSelectedSession] = useState<SessionWithMetadata | null>(null);
   const [trackingData, setTrackingData] = useState<FrameDetections[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -31,12 +31,15 @@ function App() {
     setError(null);
 
     try {
-      const response = await fetch(
-        `/api/sessions/${session.session_id}/detections`
-      );
-      if (!response.ok) throw new Error("Failed to fetch tracking data");
+      // Load both detections and metadata in parallel
+      const [detectionsResponse, metadataResponse] = await Promise.all([
+        fetch(`/api/sessions/${session.session_id}/detections`),
+        fetch(`/api/sessions/${session.session_id}/metadata`)
+      ]);
 
-      const detections: DetectionData[] = await response.json();
+      if (!detectionsResponse.ok) throw new Error("Failed to fetch tracking data");
+
+      const detections: DetectionData[] = await detectionsResponse.json();
 
       // Convert detection data to FrameDetections format
       const frameMap = new Map<number, FrameDetections>();
@@ -73,7 +76,23 @@ function App() {
         (a, b) => a.frame_number - b.frame_number
       );
       setTrackingData(frames);
-      setSelectedSession(session);
+
+      // Load GPS metadata if available
+      let gpsMetadata = [];
+      if (metadataResponse.ok) {
+        gpsMetadata = await metadataResponse.json();
+        console.log(`Loaded ${gpsMetadata.length} GPS metadata entries`);
+      } else {
+        console.warn("No GPS metadata available for this session");
+      }
+
+      // Convert session to SessionWithMetadata
+      const sessionWithMetadata: SessionWithMetadata = {
+        ...session,
+        metadata: gpsMetadata
+      };
+
+      setSelectedSession(sessionWithMetadata);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to load session data"
@@ -83,7 +102,7 @@ function App() {
     }
   };
 
-  const getVideoUrl = (session: Session): string => {
+  const getVideoUrl = (session: Session | SessionWithMetadata): string => {
     const url = `/api/video/${encodeURIComponent(session.video_path)}`;
     console.log("Generated video URL:", url, "for path:", session.video_path);
     return url;
@@ -200,57 +219,41 @@ function App() {
               </div>
             </div>
 
-            {/* Video Player */}
+            {/* Video and Map Viewer */}
             <div className="lg:col-span-2">
-              <div className="bg-white rounded-xl p-6 shadow-xl">
-                <h2 className="text-xl font-semibold text-gray-700 mb-4">
-                  Video Player with Detections
-                </h2>
-
-                {loading && (
+              {loading && (
+                <div className="bg-white rounded-xl p-6 shadow-xl">
                   <div className="flex items-center justify-center py-12">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
                     <span className="ml-3 text-gray-600">
                       Loading tracking data...
                     </span>
                   </div>
-                )}
+                </div>
+              )}
 
-                {selectedSession && !loading && (
-                  <div className="space-y-4">
-                    <div className="text-sm text-gray-600 border-b pb-2">
-                      <p>
-                        <strong>Video:</strong> {selectedSession.video_path}
-                      </p>
-                      <p>
-                        <strong>Frames:</strong> {trackingData.length}
-                      </p>
-                      <p>
-                        <strong>Detections:</strong>{" "}
-                        {trackingData.reduce(
-                          (acc, frame) => acc + frame.objects.length,
-                          0
-                        )}
-                      </p>
-                    </div>
+              {selectedSession && !loading && (
+                <VideoMapViewer
+                  session={selectedSession}
+                  trackingData={trackingData}
+                  videoSrc={getVideoUrl(selectedSession)}
+                />
+              )}
 
-                    <VideoCanvas
-                      videoSrc={getVideoUrl(selectedSession)}
-                      trackingData={trackingData}
-                    />
-                  </div>
-                )}
-
-                {!selectedSession && !loading && (
+              {!selectedSession && !loading && (
+                <div className="bg-white rounded-xl p-6 shadow-xl">
+                  <h2 className="text-xl font-semibold text-gray-700 mb-4">
+                    Video Player with Detections & Map
+                  </h2>
                   <div className="text-center py-12 text-gray-500">
-                    <div className="text-4xl mb-4">📹</div>
+                    <div className="text-4xl mb-4">🗺️📹</div>
                     <p>
                       Select a tracking session to view the video with
-                      detections
+                      detections and synchronized map
                     </p>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           </div>
         )}

@@ -1,3 +1,16 @@
+/* Leaflet CSS import */
+@import 'leaflet/dist/leaflet.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Custom map styling */
+.leaflet-container {
+  background-color: #f3f4f6;
+}
+
+.drone-marker {
+  background: transparent !important;
+  border: none !important;
+}

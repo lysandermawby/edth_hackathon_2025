@@ -45,3 +45,21 @@ export interface DetectionData {
   center_x: number;
   center_y: number;
 }
+
+export interface DroneMetadata {
+  timestamp: number;
+  latitude: number;
+  longitude: number;
+  altitude: number;
+  roll: number;
+  pitch: number;
+  yaw: number;
+  gimbal_elevation: number;
+  gimbal_azimuth: number;
+  vfov: number;
+  hfov: number;
+}
+
+export interface SessionWithMetadata extends Session {
+  metadata?: DroneMetadata[];
+}
