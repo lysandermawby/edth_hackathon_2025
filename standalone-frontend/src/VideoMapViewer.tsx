@@ -162,7 +162,7 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
                   <button
                     onClick={onRegenerateDetections}
                     disabled={isGeneratingDetections}
-                    className={`btn ${
+                    className={`btn flex items-center gap-2 ${
                       isGeneratingDetections
                         ? "btn-secondary cursor-not-allowed"
                         : "btn-primary"
@@ -176,7 +176,7 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
                     ) : (
                       <>
                         <HiRefresh className="w-4 h-4" />
-                        Regenerate
+                        Regenerate Detections
                       </>
                     )}
                   </button>
