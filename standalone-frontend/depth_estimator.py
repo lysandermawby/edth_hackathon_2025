@@ -14,6 +14,9 @@ from pathlib import Path
 from typing import Dict, List, Tuple, Optional, Any
 import sys
 import os
+import threading
+import queue
+import time
 
 # Add the depth_pro module to path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'ml-depth-pro', 'src'))
@@ -45,8 +48,18 @@ class DepthEstimator:
         self.depth_cache = {}
         self.cache_size_limit = 10  # Keep last 10 depth maps
 
+        # Threading for non-blocking depth processing
+        self.processing_queue = queue.Queue(maxsize=2)  # Small queue to avoid memory issues
+        self.result_queue = queue.Queue()
+        self.stop_processing = False
+        self.processing_thread = None
+
         # Initialize the model
         self._initialize_model()
+
+        # Start background processing thread if initialized
+        if self.is_initialized:
+            self._start_background_processing()
 
     def _initialize_model(self):
         """Initialize the Depth Pro model."""
@@ -96,27 +109,56 @@ class DepthEstimator:
             logging.error(f"Failed to initialize Depth Pro model: {e}")
             self.is_initialized = False
 
-    def estimate_depth(self, frame: np.ndarray, frame_id: Optional[str] = None) -> Optional[np.ndarray]:
-        """
-        Estimate depth for the entire frame.
+    def _start_background_processing(self):
+        """Start background thread for depth processing."""
+        self.processing_thread = threading.Thread(target=self._background_processor, daemon=True)
+        self.processing_thread.start()
+        logging.info("Background depth processing thread started")
 
-        Args:
-            frame: Input BGR frame from OpenCV
-            frame_id: Optional frame identifier for caching
+    def _background_processor(self):
+        """Background thread that processes depth estimation requests."""
+        while not self.stop_processing:
+            try:
+                # Get frame from queue (with timeout to check stop condition)
+                try:
+                    frame_data = self.processing_queue.get(timeout=0.1)
+                except queue.Empty:
+                    continue
 
-        Returns:
-            Depth map as numpy array (height, width) with depth in meters, or None if failed
-        """
-        if not self.is_initialized:
-            return None
+                frame, frame_id, resize_factor = frame_data
 
-        # Check cache first
-        if frame_id and frame_id in self.depth_cache:
-            return self.depth_cache[frame_id]
+                # Process depth estimation
+                try:
+                    depth_map = self._compute_depth_sync(frame, resize_factor)
+                    self.result_queue.put((frame_id, depth_map, time.time()))
 
+                    # Cache the result
+                    if frame_id:
+                        self._add_to_cache(frame_id, depth_map)
+
+                except Exception as e:
+                    logging.error(f"Background depth processing error: {e}")
+                    self.result_queue.put((frame_id, None, time.time()))
+
+                finally:
+                    self.processing_queue.task_done()
+
+            except Exception as e:
+                logging.error(f"Background processor error: {e}")
+
+    def _compute_depth_sync(self, frame: np.ndarray, resize_factor: float) -> Optional[np.ndarray]:
+        """Synchronously compute depth map (for background thread)."""
         try:
+            # Resize frame for faster processing
+            if resize_factor != 1.0:
+                height, width = frame.shape[:2]
+                new_height, new_width = int(height * resize_factor), int(width * resize_factor)
+                frame_resized = cv2.resize(frame, (new_width, new_height))
+            else:
+                frame_resized = frame
+
             # Convert BGR to RGB
-            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            rgb_frame = cv2.cvtColor(frame_resized, cv2.COLOR_BGR2RGB)
 
             # Convert to PIL Image for Depth Pro
             from PIL import Image
@@ -128,17 +170,97 @@ class DepthEstimator:
             # Run inference
             with torch.no_grad():
                 prediction = self.model.infer(image_tensor)
-                depth_map = prediction["depth"].cpu().numpy().squeeze()
+                depth_map_small = prediction["depth"].cpu().numpy().squeeze()
 
-            # Cache the result
-            if frame_id:
-                self._add_to_cache(frame_id, depth_map)
+            # Resize depth map back to original size if needed
+            if resize_factor != 1.0:
+                original_height, original_width = frame.shape[:2]
+                depth_map = cv2.resize(depth_map_small, (original_width, original_height))
+            else:
+                depth_map = depth_map_small
 
             return depth_map
 
         except Exception as e:
-            logging.error(f"Depth estimation failed: {e}")
+            logging.error(f"Sync depth computation failed: {e}")
             return None
+
+    def estimate_depth_async(self, frame: np.ndarray, frame_id: Optional[str] = None, resize_factor: float = 0.15) -> bool:
+        """
+        Submit frame for asynchronous depth estimation.
+
+        Args:
+            frame: Input BGR frame from OpenCV
+            frame_id: Optional frame identifier for caching
+            resize_factor: Factor to resize frame for faster processing
+
+        Returns:
+            True if submitted successfully, False otherwise
+        """
+        if not self.is_initialized or self.processing_thread is None:
+            return False
+
+        # Check cache first
+        if frame_id and frame_id in self.depth_cache:
+            return True
+
+        try:
+            # Try to add to processing queue (non-blocking)
+            self.processing_queue.put_nowait((frame.copy(), frame_id, resize_factor))
+            return True
+        except queue.Full:
+            # Queue is full, skip this frame
+            logging.debug("Depth processing queue full, skipping frame")
+            return False
+
+    def get_latest_depth_result(self) -> Tuple[Optional[str], Optional[np.ndarray]]:
+        """
+        Get the latest depth result from background processing.
+
+        Returns:
+            Tuple of (frame_id, depth_map) or (None, None) if no result available
+        """
+        try:
+            # Get all available results and return the latest
+            latest_result = None
+            while True:
+                try:
+                    result = self.result_queue.get_nowait()
+                    latest_result = result
+                except queue.Empty:
+                    break
+
+            if latest_result:
+                frame_id, depth_map, timestamp = latest_result
+                return frame_id, depth_map
+            else:
+                return None, None
+
+        except Exception as e:
+            logging.error(f"Error getting depth result: {e}")
+            return None, None
+
+    def estimate_depth(self, frame: np.ndarray, frame_id: Optional[str] = None, resize_factor: float = 0.15) -> Optional[np.ndarray]:
+        """
+        Estimate depth for the entire frame (synchronous fallback).
+
+        Args:
+            frame: Input BGR frame from OpenCV
+            frame_id: Optional frame identifier for caching
+            resize_factor: Factor to resize frame for faster processing
+
+        Returns:
+            Depth map as numpy array (height, width) with depth in meters, or None if failed
+        """
+        if not self.is_initialized:
+            return None
+
+        # Check cache first
+        if frame_id and frame_id in self.depth_cache:
+            return self.depth_cache[frame_id]
+
+        # Use synchronous computation for fallback
+        return self._compute_depth_sync(frame, resize_factor)
 
     def get_object_depth(self, depth_map: np.ndarray, bbox: Dict[str, float]) -> Dict[str, float]:
         """

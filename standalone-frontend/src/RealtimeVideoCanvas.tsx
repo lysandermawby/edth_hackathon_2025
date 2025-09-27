@@ -114,6 +114,9 @@ const RealtimeVideoCanvas: React.FC<RealtimeVideoCanvasProps> = ({
   const [videoInfo, setVideoInfo] = useState<{width: number, height: number, source: string} | null>(null);
   const [selectedCameraId, setSelectedCameraId] = useState<number>(0);
   const [availableCameras, setAvailableCameras] = useState<number[]>([0, 1, 2, 3]); // Default camera options
+  const [depthEnabled, setDepthEnabled] = useState<boolean>(false);
+  const [depthAvailable, setDepthAvailable] = useState<boolean>(false);
+  const [depthStatus, setDepthStatus] = useState<string>("Unknown");
 
   const connectWebSocket = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
@@ -126,8 +129,9 @@ const RealtimeVideoCanvas: React.FC<RealtimeVideoCanvasProps> = ({
         console.log("Connected to real-time detection server");
         setConnected(true);
         setStatus("Connected");
-        // Request available cameras
+        // Request available cameras and depth status
         ws.send(JSON.stringify({ command: "list_cameras" }));
+        ws.send(JSON.stringify({ command: "get_depth_status" }));
       };
 
       ws.onmessage = (event) => {
@@ -171,10 +175,16 @@ const RealtimeVideoCanvas: React.FC<RealtimeVideoCanvasProps> = ({
               }
               break;
               
+            case "depth_status":
+              setDepthEnabled(message.enabled || false);
+              setDepthAvailable(message.available || false);
+              setDepthStatus(message.message || "Unknown");
+              break;
+
             case "pong":
               // Handle ping response if needed
               break;
-              
+
             default:
               console.log("Unknown message type:", message.type);
           }

@@ -59,9 +59,12 @@ class RealtimeDetectionServer:
 
         # Initialize depth estimator if available and enabled
         self.depth_estimator = None
+        print(f"DEPTH_AVAILABLE: {DEPTH_AVAILABLE}, enable_depth: {enable_depth}")
         if DEPTH_AVAILABLE and enable_depth:
             try:
+                print("Creating depth estimator...")
                 self.depth_estimator = create_depth_estimator()
+                print("Checking if depth estimator is available...")
                 if self.depth_estimator.is_available():
                     print("Depth estimation enabled using Apple Depth Pro")
                 else:
@@ -69,6 +72,8 @@ class RealtimeDetectionServer:
                     self.depth_estimator = None
             except Exception as e:
                 print(f"Failed to initialize depth estimator: {e}")
+                import traceback
+                traceback.print_exc()
                 self.depth_estimator = None
         else:
             print("Depth estimation disabled")
@@ -84,6 +89,11 @@ class RealtimeDetectionServer:
         
         # Performance tracking
         self.fps_tracker = []
+
+        # Depth processing control for real-time performance
+        self.depth_frame_skip = 3  # Process depth every 3 frames
+        self.last_depth_map = None
+        self.last_depth_frame = -1
         
     async def register_client(self, websocket):
         """Register a new WebSocket client"""
@@ -187,20 +197,39 @@ class RealtimeDetectionServer:
                 try:
                     annotated_frame, detections, tracking_data = self.tracker.process_frame(frame, current_timestamp)
 
-                    # Process depth estimation if available
+                    # Process depth estimation if available (with frame skipping for performance)
                     depth_map = None
                     enhanced_objects = []
 
                     if self.depth_estimator is not None:
-                        try:
+                        # Submit frame for async processing every few frames
+                        should_submit_depth = (self.frame_count % self.depth_frame_skip == 0)
+
+                        if should_submit_depth:
                             frame_id = f"frame_{self.frame_count}"
-                            depth_map, enhanced_detections = self.depth_estimator.process_frame_with_detections(
-                                frame, tracking_data['objects'], frame_id
-                            )
-                            enhanced_objects = enhanced_detections
-                        except Exception as e:
-                            print(f"Depth estimation error: {e}")
-                            enhanced_objects = tracking_data['objects']
+                            # Submit frame for background processing (non-blocking)
+                            self.depth_estimator.estimate_depth_async(frame, frame_id, resize_factor=0.15)
+
+                        # Get latest depth result from background processing
+                        latest_frame_id, latest_depth_map = self.depth_estimator.get_latest_depth_result()
+                        if latest_depth_map is not None:
+                            self.last_depth_map = latest_depth_map
+                            self.last_depth_frame = self.frame_count
+
+                        # Use best available depth map
+                        depth_map = self.last_depth_map
+
+                        # Extract depth info for objects using latest depth map
+                        if depth_map is not None and tracking_data['objects']:
+                            try:
+                                for obj in tracking_data['objects']:
+                                    if 'bbox' in obj:
+                                        depth_stats = self.depth_estimator.get_object_depth(depth_map, obj['bbox'])
+                                        obj['depth'] = depth_stats
+                            except Exception as e:
+                                print(f"Depth info extraction error: {e}")
+
+                        enhanced_objects = tracking_data['objects']
                     else:
                         enhanced_objects = tracking_data['objects']
 
@@ -351,6 +380,58 @@ class RealtimeDetectionServer:
             elif command == 'stop':
                 await self.stop_processing()
                 
+            elif command == 'toggle_depth':
+                if DEPTH_AVAILABLE:
+                    if self.depth_estimator is None:
+                        # Enable depth estimation
+                        try:
+                            print("Enabling depth estimation...")
+                            self.depth_estimator = create_depth_estimator()
+                            if self.depth_estimator.is_available():
+                                await websocket.send(json.dumps({
+                                    "type": "depth_status",
+                                    "enabled": True,
+                                    "message": "Depth estimation enabled (WARNING: Significant performance impact on CPU)"
+                                }))
+                            else:
+                                self.depth_estimator = None
+                                await websocket.send(json.dumps({
+                                    "type": "depth_status",
+                                    "enabled": False,
+                                    "message": "Depth Pro model not available"
+                                }))
+                        except Exception as e:
+                            print(f"Failed to enable depth estimation: {e}")
+                            self.depth_estimator = None
+                            await websocket.send(json.dumps({
+                                "type": "depth_status",
+                                "enabled": False,
+                                "message": f"Failed to enable depth estimation: {str(e)}"
+                            }))
+                    else:
+                        # Disable depth estimation
+                        self.depth_estimator = None
+                        self.last_depth_map = None
+                        await websocket.send(json.dumps({
+                            "type": "depth_status",
+                            "enabled": False,
+                            "message": "Depth estimation disabled"
+                        }))
+                else:
+                    await websocket.send(json.dumps({
+                        "type": "depth_status",
+                        "enabled": False,
+                        "message": "Depth Pro not available (dependencies not installed)"
+                    }))
+
+            elif command == 'get_depth_status':
+                await websocket.send(json.dumps({
+                    "type": "depth_status",
+                    "enabled": self.depth_estimator is not None,
+                    "available": DEPTH_AVAILABLE,
+                    "message": "Depth: ON" if self.depth_estimator is not None else "Depth: OFF"
+                }))
+
             elif command == 'ping':
                 await websocket.send(json.dumps({
                     "type": "pong",
