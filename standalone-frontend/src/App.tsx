@@ -117,7 +117,7 @@ function App() {
 
     try {
       console.log("🔄 Loading session data for session:", session.session_id);
-      
+
       // Load both detections and metadata in parallel
       const [detectionsResponse, metadataResponse] = await Promise.all([
         fetch(`/api/sessions/${session.session_id}/detections`),
@@ -129,11 +129,16 @@ function App() {
 
       const detections: DetectionData[] = await detectionsResponse.json();
       console.log("📊 Loaded detections:", detections.length, "raw detections");
-      
+
       const frames = convertDetectionsToFrames(detections, session.fps);
-      console.log("🎬 Converted to frames:", frames.length, "frames with", 
-        frames.reduce((acc, f) => acc + f.objects.length, 0), "total objects");
-      
+      console.log(
+        "🎬 Converted to frames:",
+        frames.length,
+        "frames with",
+        frames.reduce((acc, f) => acc + f.objects.length, 0),
+        "total objects"
+      );
+
       setTrackingData(frames);
 
       // Load enhanced telemetry data if available
@@ -190,8 +195,11 @@ function App() {
   const regenerateDetections = async () => {
     if (!selectedSession) return;
 
-    console.log("🚀 Starting regenerate detections for session:", selectedSession.session_id);
-    
+    console.log(
+      "🚀 Starting regenerate detections for session:",
+      selectedSession.session_id
+    );
+
     setIsGeneratingDetections(true);
     setGenerationMessage(null);
     setGenerationError(null);
@@ -221,7 +229,10 @@ function App() {
       console.log("✅ Regenerate API response:", data);
 
       // Store old detection count for comparison
-      const oldDetectionCount = trackingData.reduce((acc, f) => acc + f.objects.length, 0);
+      const oldDetectionCount = trackingData.reduce(
+        (acc, f) => acc + f.objects.length,
+        0
+      );
       console.log("📊 Old detection count:", oldDetectionCount);
 
       // Refresh session data to reflect the new detections
@@ -229,7 +240,10 @@ function App() {
       await loadSessionData(selectedSession);
 
       // Check new detection count
-      const newDetectionCount = trackingData.reduce((acc, f) => acc + f.objects.length, 0);
+      const newDetectionCount = trackingData.reduce(
+        (acc, f) => acc + f.objects.length,
+        0
+      );
       console.log("📊 New detection count:", newDetectionCount);
 
       if (data?.message) {
@@ -239,7 +253,9 @@ function App() {
             : data.message;
         setGenerationMessage(detectionInfo);
       } else {
-        setGenerationMessage(`Detections regenerated successfully. Old: ${oldDetectionCount}, New: ${newDetectionCount}`);
+        setGenerationMessage(
+          `Detections regenerated successfully. Old: ${oldDetectionCount}, New: ${newDetectionCount}`
+        );
       }
     } catch (err) {
       const message =
@@ -526,7 +542,9 @@ function App() {
                             </div>
                             {session.session_id.toString() && (
                               <div className="text-xs text-cyber-muted">
-                                {new Date(session.session_id.toString()).toLocaleDateString()}
+                                {new Date(
+                                  session.session_id.toString()
+                                ).toLocaleDateString()}
                               </div>
                             )}
                           </button>
