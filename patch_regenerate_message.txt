@@ -1,0 +1,9 @@
+      if (data?.message) {
+        const detectionInfo =
+          typeof data.detections === "number"
+            ? `Regenerated with improved re-identification algorithm (${data.detections} detections)`
+            : data.message;
+        setGenerationMessage(detectionInfo);
+      } else {
+        setGenerationMessage("Detections regenerated successfully with improved algorithm.");
+      }

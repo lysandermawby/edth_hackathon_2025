@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Re-generate detections for an existing tracking session.
 
-This helper reuses the IntegratedRealtimeTracker so the resulting detections are
-identical to what the real-time pipeline would store, but it targets a specific
+This helper reuses the RealtimeReidentificationTracker (improved algorithm) so the 
+resulting detections include enhanced re-identification capabilities and are
+improved compared to the basic IntegratedRealtimeTracker. It targets a specific
 session already present in the SQLite database. Existing detections can be
 cleared before reprocessing to guarantee the overlays match the video segment.
 """
@@ -22,76 +23,87 @@ PROJECT_ROOT = SCRIPT_DIR.parent.parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.append(str(SCRIPT_DIR))
 
-from integrated_realtime_tracker import IntegratedRealtimeTracker  # noqa: E402
-from database_integration import TrackingDatabase  # noqa: E402
-
-
-def resolve_video_path(video_path: str) -> str:
-    """Return an absolute path for the provided video path."""
-    potential_path = Path(video_path)
-    if potential_path.is_absolute():
-        return str(potential_path)
-
-    absolute_path = PROJECT_ROOT / potential_path
-    return str(absolute_path)
-
-
-def clear_session_data(db_path: Path, session_id: int) -> None:
-    """Remove existing detections for a session so they can be regenerated."""
-    with sqlite3.connect(db_path) as conn:
-        conn.execute("DELETE FROM tracked_objects WHERE session_id = ?", (session_id,))
-        conn.execute(
-            "UPDATE tracking_sessions SET total_frames = NULL, end_time = NULL WHERE session_id = ?",
-            (session_id,),
-        )
-        conn.commit()
+# Import the improved re-identification tracker instead of basic tracker
+from realtime_reidentification_tracker import RealtimeReidentificationTracker  # noqa: E402
 
 
 def fetch_session_details(db_path: Path, session_id: int) -> Optional[tuple[str, Optional[float]]]:
-    with sqlite3.connect(db_path) as conn:
-        row = conn.execute(
-            "SELECT video_path, fps FROM tracking_sessions WHERE session_id = ?",
-            (session_id,),
-        ).fetchone()
-    return row if row else None
+    """Fetch the video path and FPS for a given session."""
+    try:
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT video_path, fps FROM tracking_sessions WHERE session_id = ?",
+                (session_id,),
+            )
+            result = cursor.fetchone()
+            return result if result else None
+    except sqlite3.Error as e:
+        print(f"Database error: {e}", file=sys.stderr)
+        return None
+
+
+def clear_session_data(db_path: Path, session_id: int) -> None:
+    """Clear all tracking data for the specified session."""
+    try:
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM tracked_objects WHERE session_id = ?", (session_id,))
+            conn.commit()
+            print(f"Cleared existing data for session {session_id}")
+    except sqlite3.Error as e:
+        print(f"Database error during cleanup: {e}", file=sys.stderr)
+
+
+def resolve_video_path(video_path: str) -> str:
+    """Resolve video path to absolute path."""
+    if os.path.isabs(video_path):
+        return video_path
+    
+    # Try relative to project root
+    project_video_path = PROJECT_ROOT / video_path
+    if project_video_path.exists():
+        return str(project_video_path)
+    
+    # Try relative to current directory
+    cwd_video_path = Path.cwd() / video_path
+    if cwd_video_path.exists():
+        return str(cwd_video_path)
+    
+    # Return as-is if not found (will be handled by caller)
+    return video_path
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Generate detections for an existing tracking session")
-    parser.add_argument("session_id", type=int, help="Session identifier to process")
-    parser.add_argument(
-        "--video-path",
-        type=str,
-        default=None,
-        help="Optional override for the video path. Defaults to the value stored in the database.",
+    parser = argparse.ArgumentParser(
+        description="Re-generate detections for an existing session using improved re-identification algorithm"
     )
+    parser.add_argument("session_id", type=int, help="Session ID to regenerate")
     parser.add_argument(
         "--db-path",
-        type=str,
-        default=str(PROJECT_ROOT / "databases" / "tracking_data.db"),
-        help="Path to the SQLite database file",
+        type=Path,
+        default=PROJECT_ROOT / "databases" / "tracking_data.db",
+        help="Path to tracking database",
+    )
+    parser.add_argument(
+        "--video-path", type=str, help="Override video path (optional)"
     )
     parser.add_argument(
         "--model-path",
         type=str,
         default=str(PROJECT_ROOT / "models" / "yolo11m.pt"),
-        help="Path to the YOLO weights file",
+        help="Path to YOLO model",
     )
     parser.add_argument(
-        "--ignore-classes",
-        nargs="*",
-        default=[],
-        help="Optional list of class names to ignore while tracking",
+        "--ignore-classes", nargs="*", help="Class names to ignore during detection"
+    )
+    parser.add_argument(
+        "--show-labels", action="store_true", help="Show class labels on detections"
     )
     parser.add_argument(
         "--keep-existing",
         action="store_true",
-        help="Append to existing detections instead of clearing them first",
-    )
-    parser.add_argument(
-        "--show-labels",
-        action="store_true",
-        help="Draw class labels while processing (useful for debugging)",
+        help="Keep existing detections (append new ones)",
     )
     return parser.parse_args()
 
@@ -133,13 +145,15 @@ def main() -> None:
             )
             conn.commit()
 
-    tracker = IntegratedRealtimeTracker(
+    # Use the improved re-identification tracker instead of basic tracker
+    print(f"Using improved re-identification tracker for session {args.session_id}")
+    tracker = RealtimeReidentificationTracker(
         model_path=args.model_path,
         show_labels=args.show_labels,
         ignore_classes=args.ignore_classes,
         enable_database=True,
         db_path=str(db_path),
-        headless=True,
+        max_occlusion_frames=60  # Enhanced re-identification parameter
     )
 
     tracker.run(video_path, session_id=args.session_id, reset_frame_count=not args.keep_existing)

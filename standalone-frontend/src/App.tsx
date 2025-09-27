@@ -208,14 +208,16 @@ function App() {
       // Refresh session data to reflect the new detections
       await loadSessionData(selectedSession);
 
+      console.log("🔄 Regenerate completed:", data);
+
       if (data?.message) {
         const detectionInfo =
           typeof data.detections === "number"
-            ? `${data.message} (${data.detections} detections)`
+            ? `Regenerated with improved re-identification algorithm (${data.detections} detections)`
             : data.message;
         setGenerationMessage(detectionInfo);
       } else {
-        setGenerationMessage("Detections regenerated successfully.");
+        setGenerationMessage("Detections regenerated successfully with improved re-identification algorithm.");
       }
     } catch (err) {
       const message =
