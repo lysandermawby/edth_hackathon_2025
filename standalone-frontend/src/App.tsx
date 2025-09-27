@@ -249,7 +249,7 @@ function App() {
                 </div>
                 <div>
                   <h1 className="text-2xl font-bold text-neon-cyan text-glow">
-                    > EDTH_TRACKER.EXE
+                    &gt; EDTH_TRACKER.EXE
                   </h1>
                   <p className="text-sm text-cyber-muted font-mono">
                     [NEURAL_DETECTION_SYSTEM_v2.1_ONLINE]
@@ -305,7 +305,7 @@ function App() {
                     </div>
                     <div>
                       <h2 className="text-xl font-bold text-neon-pink text-glow">
-                        >> NEURAL_STREAM_ACTIVE
+                        &gt;&gt; NEURAL_STREAM_ACTIVE
                       </h2>
                       <p className="text-sm text-cyber-muted font-mono">
                         [AI_DETECTION_ENGINE_PROCESSING...]
