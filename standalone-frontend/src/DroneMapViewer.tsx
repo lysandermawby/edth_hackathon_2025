@@ -458,13 +458,13 @@ const DroneMapViewer: React.FC<DroneMapViewerProps> = ({
   return (
     <div className={`${className} relative`}>
       {/* Map Controls */}
-      <div className="absolute bottom-4 left-4 z-[1000] bg-tactical-surface text-tactical-text rounded-lg shadow-lg p-3 space-y-2">
+      <div className="absolute bottom-4 left-4 z-[1000] bg-cyber-surface text-cyber-text border border-neon-cyan p-3 space-y-2">
         <div className="flex items-center space-x-2">
           <label className="text-sm font-medium">Zoom:</label>
           <select
             value={mapZoom}
             onChange={(e) => setMapZoom(Number(e.target.value))}
-            className="text-sm border rounded px-2 py-1 tactical-input"
+            className="text-sm border border-cyber-border bg-cyber-surface text-cyber-text px-2 py-1 cyber-input"
           >
             <option value={13}>13</option>
             <option value={14}>14</option>
@@ -518,7 +518,7 @@ const DroneMapViewer: React.FC<DroneMapViewerProps> = ({
       </div>
 
       {/* Position Info */}
-      <div className="absolute top-4 right-4 z-[1000] bg-tactical-surface text-tactical-text rounded-lg shadow-lg p-3">
+      <div className="absolute top-4 right-4 z-[1000] bg-cyber-surface text-cyber-text border border-neon-cyan p-3">
         <div className="text-sm space-y-1">
           <div>
             <strong>Lat:</strong> {currentMetadata.latitude.toFixed(6)}
