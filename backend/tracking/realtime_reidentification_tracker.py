@@ -117,18 +117,20 @@ class RealtimeReidentificationTracker:
         self.reid_system.occlusion_handler.max_occlusion_frames = max_occlusion_frames
         self.reid_system.occlusion_handler.search_expansion_rate = 1.05  # Very slow expansion
         self.reid_system.feature_extractor.feature_weights = {
-            'color_hist': 0.2,   # Further reduced color weight (unreliable over time)
-            'hog': 0.3,          # Increased shape weight (more stable)
-            'deep': 0.5          # Maintained deep learning weight
+            'color_hist': 0.2,   # Reduced color weight (unreliable over time)
+            'hog': 0.3,          # Shape weight (moderately stable)
+            'deep': 0.5          # Highest weight for deep learning features (most discriminative)
         }
         
-        # Ultra-robust similarity thresholds for very long occlusions
+        # Optimized similarity thresholds based on deep learning features
         self.reid_system.similarity_thresholds = {
-            'person': 0.7,      # Lower for people
-            'car': 0.6,         # Much lower for vehicles
-            'truck': 0.5,       # Very low for trucks
-            'bicycle': 0.65,    # Lower for bicycles
-            'default': 0.6      # Lower default threshold
+            'person': 0.75,     # Higher for people (distinctive features)
+            'car': 0.7,         # Higher for vehicles (now using deep features)
+            'truck': 0.65,      # Higher for trucks (better discriminative power)
+            'bus': 0.68,        # Higher for buses
+            'motorcycle': 0.72, # Higher for motorcycles
+            'bicycle': 0.7,     # Higher for bicycles
+            'default': 0.7      # Higher default threshold with deep features
         }
         
         # Additional parameters for very long occlusions

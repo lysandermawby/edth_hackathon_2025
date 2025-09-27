@@ -140,12 +140,8 @@ app.post("/api/sessions/:sessionId/generate-detections", (req, res) => {
   });
 
   pythonProcess.on("close", (code) => {
-    console.log(`🐍 Python process completed with code: ${code}`);
-    console.log(`📤 Python stdout: ${stdout.trim()}`);
-    console.log(`📥 Python stderr: ${stderr.trim()}`);
-    
     if (code !== 0) {
-      console.error("❌ Detection generation failed:", stderr);
+      console.error("Detection generation failed:", stderr);
       res.status(500).json({
         error: "Failed to generate detections",
         details: stderr.trim() || stdout.trim(),
@@ -153,29 +149,23 @@ app.post("/api/sessions/:sessionId/generate-detections", (req, res) => {
       return;
     }
 
-    console.log(`🔍 Checking detection count for session ${sessionId}...`);
     db.get(
       "SELECT COUNT(*) as count FROM tracked_objects WHERE session_id = ?",
       [sessionId],
       (countErr, row) => {
         if (countErr) {
-          console.error("❌ Database error after generation:", countErr);
+          console.error("Database error after generation:", countErr);
           res.status(500).json({
             error: "Detections generated but counting results failed",
           });
           return;
         }
 
-        const detectionCount = row?.count ?? 0;
-        console.log(`📊 Detection count in database: ${detectionCount}`);
-        
         res.json({
           message: "Detections generated successfully",
-          detections: detectionCount,
+          detections: row?.count ?? 0,
           output: stdout.trim(),
         });
-        
-        console.log(`✅ Regenerate response sent: ${detectionCount} detections`);
       }
     );
   });

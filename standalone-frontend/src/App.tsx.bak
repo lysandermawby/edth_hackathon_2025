@@ -4,6 +4,7 @@ import {
   HiRefresh,
   HiChartBar,
   HiLocationMarker,
+  HiServer,
   HiPlay,
   HiBookOpen,
   HiLink,
