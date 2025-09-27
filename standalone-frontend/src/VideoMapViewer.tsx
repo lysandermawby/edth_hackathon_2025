@@ -274,22 +274,17 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
               <div className="grid grid-cols-3 gap-4">
                 {/* Column 1: Sync Controls */}
                 <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="sync-map"
-                      checked={isMapSynced}
-                      onChange={(e) => setIsMapSynced(e.target.checked)}
-                      className="w-4 h-4 text-primary-600 rounded focus:ring-primary-500"
-                    />
-                    <label
-                      htmlFor="sync-map"
-                      className="text-sm font-medium text-tactical-text flex items-center gap-2"
-                    >
-                      <HiLink className="w-3 h-3" />
-                      Auto-sync
-                    </label>
-                  </div>
+                  <button
+                    onClick={() => setIsMapSynced(!isMapSynced)}
+                    className={`w-full px-3 py-2 text-sm font-medium rounded transition-all duration-200 flex items-center justify-center gap-2 ${
+                      isMapSynced
+                        ? "bg-primary-600 text-white border border-primary-600 shadow-md"
+                        : "bg-neutral-100 text-neutral-600 border border-neutral-300 hover:bg-neutral-200"
+                    }`}
+                  >
+                    <HiLink className={`w-3 h-3 ${isMapSynced ? "text-white" : "text-neutral-500"}`} />
+                    {isMapSynced ? "Auto-sync ON" : "Auto-sync OFF"}
+                  </button>
 
                   {!isMapSynced && (
                     <div className="space-y-2">
@@ -313,7 +308,9 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
 
                 {/* Column 2: Video Info */}
                 <div className="space-y-2">
-                  <div className="text-xs text-tactical-muted font-medium">VIDEO</div>
+                  <div className="text-xs text-tactical-muted font-medium">
+                    VIDEO
+                  </div>
                   <div className="space-y-1">
                     <div className="text-sm font-mono text-tactical-text">
                       {formatTime(currentVideoTime)} / {formatTime(duration)}
@@ -329,7 +326,9 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
 
                 {/* Column 3: Map Info */}
                 <div className="space-y-2">
-                  <div className="text-xs text-tactical-muted font-medium">MAP</div>
+                  <div className="text-xs text-tactical-muted font-medium">
+                    MAP
+                  </div>
                   <div className="space-y-1">
                     <div className="text-sm font-mono text-tactical-text">
                       {mapFrame}/{actualMetadata.length - 1}
@@ -337,7 +336,8 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
                     {actualMetadata.length > 0 &&
                       mapFrame < actualMetadata.length && (
                         <div className="px-2 py-1 bg-secondary-100 text-secondary-700 rounded text-xs text-center">
-                          GPS#{mapFrame} @ {actualMetadata[mapFrame].timestamp.toFixed(1)}s
+                          GPS#{mapFrame} @{" "}
+                          {actualMetadata[mapFrame].timestamp.toFixed(1)}s
                         </div>
                       )}
                   </div>
