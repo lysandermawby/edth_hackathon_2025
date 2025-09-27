@@ -100,3 +100,10 @@ databases/
 output_frames/*
 
 *.jpg
+*.csv
+*.mp4
+*.avi
+*.mov
+*.flv
+*.wmv
+*.mkv

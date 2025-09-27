@@ -1,0 +1,233 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* Military-grade tactical interface color system */
+    --background: 210 20% 8%;
+    --foreground: 210 5% 90%;
+
+    --card: 210 20% 10%;
+    --card-foreground: 210 5% 95%;
+
+    --popover: 210 20% 12%;
+    --popover-foreground: 210 5% 95%;
+
+    --primary: 150 60% 35%;
+    --primary-foreground: 210 5% 98%;
+
+    --secondary: 210 15% 15%;
+    --secondary-foreground: 210 5% 90%;
+
+    --muted: 210 15% 12%;
+    --muted-foreground: 210 5% 65%;
+
+    --accent: 35 85% 55%;
+    --accent-foreground: 210 20% 8%;
+
+    --destructive: 0 70% 55%;
+    --destructive-foreground: 210 5% 98%;
+
+    --border: 210 15% 20%;
+    --input: 210 15% 15%;
+    --ring: 150 60% 45%;
+
+    --radius: 0.25rem;
+
+    /* Tactical status colors */
+    --tactical-active: 120 65% 50%;
+    --tactical-warning: 45 90% 60%;
+    --tactical-critical: 0 75% 60%;
+    --tactical-neutral: 210 10% 50%;
+    
+    /* Grid and overlay colors */
+    --grid-line: 210 15% 25%;
+    --overlay: 210 20% 8% / 0.85;
+    
+    /* Glow effects */
+    --glow-primary: 150 60% 45%;
+    --glow-accent: 35 85% 55%;
+    
+    /* Typography shadows */
+    --text-shadow: 0 1px 2px hsl(210 20% 0% / 0.8);
+    
+    /* Transitions */
+    --transition-fast: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-mono;
+  }
+}
+
+@layer components {
+  /* Tactical interface utilities */
+  .tactical-grid {
+    background-image: 
+      linear-gradient(hsl(var(--grid-line)) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--grid-line)) 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
+  
+  .tactical-glow {
+    box-shadow: 0 0 20px hsl(var(--glow-primary) / 0.3);
+  }
+  
+  .tactical-accent-glow {
+    box-shadow: 0 0 20px hsl(var(--glow-accent) / 0.3);
+  }
+  
+  .status-active {
+    color: hsl(var(--tactical-active));
+    text-shadow: 0 0 8px hsl(var(--tactical-active) / 0.6);
+  }
+  
+  .status-warning {
+    color: hsl(var(--tactical-warning));
+    text-shadow: 0 0 8px hsl(var(--tactical-warning) / 0.6);
+  }
+  
+  .status-critical {
+    color: hsl(var(--tactical-critical));
+    text-shadow: 0 0 8px hsl(var(--tactical-critical) / 0.6);
+  }
+  
+  /* Additional tactical color utilities */
+  .border-tactical-active {
+    border-color: hsl(var(--tactical-active));
+  }
+  
+  .bg-tactical-active {
+    background-color: hsl(var(--tactical-active));
+  }
+  
+  .text-tactical-active {
+    color: hsl(var(--tactical-active));
+  }
+  
+  .border-tactical-warning {
+    border-color: hsl(var(--tactical-warning));
+  }
+  
+  .bg-tactical-warning {
+    background-color: hsl(var(--tactical-warning));
+  }
+  
+  .text-tactical-warning {
+    color: hsl(var(--tactical-warning));
+  }
+  
+  .border-tactical-critical {
+    border-color: hsl(var(--tactical-critical));
+  }
+  
+  .bg-tactical-critical {
+    background-color: hsl(var(--tactical-critical));
+  }
+  
+  .text-tactical-critical {
+    color: hsl(var(--tactical-critical));
+  }
+  
+  .hud-text {
+    font-family: 'Courier New', monospace;
+    text-shadow: var(--text-shadow);
+    letter-spacing: 0.05em;
+  }
+  
+  .scan-line {
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .scan-line::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, hsl(var(--tactical-active)), transparent);
+    animation: scan 3s linear infinite;
+  }
+  
+  @keyframes scan {
+    0% { left: -100%; }
+    100% { left: 100%; }
+  }
+  
+  .pulse-glow {
+    animation: pulse-glow 2s ease-in-out infinite alternate;
+  }
+  
+  @keyframes pulse-glow {
+    from { box-shadow: 0 0 5px hsl(var(--glow-primary) / 0.2); }
+    to { box-shadow: 0 0 20px hsl(var(--glow-primary) / 0.6); }
+  }
+}
