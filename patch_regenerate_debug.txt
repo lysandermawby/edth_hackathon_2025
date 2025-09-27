@@ -1,8 +1,0 @@
-      const data = await response.json();
-
-      // Refresh session data to reflect the new detections
-      await loadSessionData(selectedSession);
-
-      console.log("🔄 Regenerate completed:", data);
-
-      if (data?.message) {

@@ -19,10 +19,6 @@ Author: EDTH Hackathon 2025
 
 import cv2
 import numpy as np
-import torch
-import torch.nn as nn
-import torchvision.transforms as transforms
-from torchvision.models import resnet50, ResNet50_Weights
 import supervision as sv
 from ultralytics import YOLO
 from collections import defaultdict, deque
@@ -160,85 +156,12 @@ class MultiModalFeatureExtractor:
     """Extract multiple types of features for robust re-identification"""
     
     def __init__(self, device='auto'):
-        self.device = torch.device('cuda' if torch.cuda.is_available() and device != 'cpu' else 'cpu')
-        
-        # Initialize deep learning model
-        self._init_deep_model()
-        
-        # Feature weights for combination - optimized for accuracy
+        # Feature weights for combination - optimized for accuracy without deep learning
         self.feature_weights = {
-            'color_hist': 0.2,  # Reduced - color can be unreliable
-            'hog': 0.3,         # Reduced - shape can vary
-            'deep': 0.5         # Highest weight - most discriminative
+            'color_hist': 0.4,  # Increased - color is now primary feature
+            'hog': 0.6          # Increased - shape is now primary feature
         }
         
-    def _init_deep_model(self):
-        """Initialize ensemble of deep learning feature extractors for maximum accuracy"""
-        try:
-            # Primary model: ResNet-50
-            self.resnet_model = resnet50(weights=ResNet50_Weights.IMAGENET1K_V2)
-            self.resnet_model = nn.Sequential(*list(self.resnet_model.children())[:-1])
-            self.resnet_model.eval()
-            self.resnet_model.to(self.device)
-
-            # Secondary model: EfficientNet (if available)
-            try:
-                from torchvision.models import efficientnet_b3, EfficientNet_B3_Weights
-                self.efficientnet_model = efficientnet_b3(weights=EfficientNet_B3_Weights.IMAGENET1K_V1)
-                self.efficientnet_model = nn.Sequential(*list(self.efficientnet_model.children())[:-1])
-                self.efficientnet_model.eval()
-                self.efficientnet_model.to(self.device)
-                self.efficientnet_available = True
-                print("✅ EfficientNet-B3 ensemble model loaded")
-            except Exception:
-                self.efficientnet_available = False
-                print("⚠️ EfficientNet not available, using ResNet-50 only")
-
-            # Tertiary model: MobileNet (lightweight but effective)
-            try:
-                from torchvision.models import mobilenet_v3_large, MobileNet_V3_Large_Weights
-                self.mobilenet_model = mobilenet_v3_large(weights=MobileNet_V3_Large_Weights.IMAGENET1K_V2)
-                self.mobilenet_model = nn.Sequential(*list(self.mobilenet_model.children())[:-1])
-                self.mobilenet_model.eval()
-                self.mobilenet_model.to(self.device)
-                self.mobilenet_available = True
-                print("✅ MobileNet-V3 ensemble model loaded")
-            except Exception:
-                self.mobilenet_available = False
-                print("⚠️ MobileNet not available")
-
-            # Transforms for different models
-            self.resnet_transform = transforms.Compose([
-                transforms.ToPILImage(),
-                transforms.Resize((224, 224)),
-                transforms.ToTensor(),
-                transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                   std=[0.229, 0.224, 0.225])
-            ])
-
-            self.efficientnet_transform = transforms.Compose([
-                transforms.ToPILImage(),
-                transforms.Resize((300, 300)),  # EfficientNet-B3 native size
-                transforms.ToTensor(),
-                transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                   std=[0.229, 0.224, 0.225])
-            ])
-
-            self.mobilenet_transform = transforms.Compose([
-                transforms.ToPILImage(),
-                transforms.Resize((224, 224)),
-                transforms.ToTensor(),
-                transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                   std=[0.229, 0.224, 0.225])
-            ])
-
-            self.deep_features_available = True
-            ensemble_count = 1 + (1 if self.efficientnet_available else 0) + (1 if self.mobilenet_available else 0)
-            print(f"✅ Deep learning ensemble initialized with {ensemble_count} models")
-
-        except Exception as e:
-            print(f"Warning: Deep learning ensemble not available: {e}")
-            self.deep_features_available = False
     
     def extract_color_histogram(self, image: np.ndarray, bbox: np.ndarray) -> np.ndarray:
         """Extract color histogram features"""
@@ -282,89 +205,6 @@ class MultiModalFeatureExtractor:
         except Exception:
             return np.zeros(1764)
     
-    def extract_deep_features(self, image: np.ndarray, bbox: np.ndarray) -> np.ndarray:
-        """Extract ensemble deep learning features for maximum discriminative power"""
-        if not self.deep_features_available:
-            return np.zeros(4096)  # Increased size for ensemble features
-
-        x1, y1, x2, y2 = bbox.astype(int)
-        x1, y1 = max(0, x1), max(0, y1)
-        x2, y2 = min(image.shape[1], x2), min(image.shape[0], y2)
-
-        if x2 <= x1 or y2 <= y1:
-            return np.zeros(4096)
-
-        roi = image[y1:y2, x1:x2]
-        ensemble_features = []
-
-        try:
-            # Extract ResNet-50 features
-            resnet_tensor = self.resnet_transform(roi).unsqueeze(0).to(self.device)
-            with torch.no_grad():
-                resnet_features = self.resnet_model(resnet_tensor).squeeze().cpu().numpy()
-                resnet_features = resnet_features / (np.linalg.norm(resnet_features) + 1e-8)
-                ensemble_features.append(resnet_features)
-
-            # Extract EfficientNet features if available
-            if self.efficientnet_available:
-                try:
-                    eff_tensor = self.efficientnet_transform(roi).unsqueeze(0).to(self.device)
-                    with torch.no_grad():
-                        eff_features = self.efficientnet_model(eff_tensor).squeeze().cpu().numpy()
-                        eff_features = eff_features / (np.linalg.norm(eff_features) + 1e-8)
-                        # Pad or truncate to match ResNet size
-                        if len(eff_features) > 2048:
-                            eff_features = eff_features[:2048]
-                        elif len(eff_features) < 2048:
-                            eff_features = np.pad(eff_features, (0, 2048 - len(eff_features)))
-                        ensemble_features.append(eff_features)
-                except Exception:
-                    pass
-
-            # Extract MobileNet features if available
-            if self.mobilenet_available:
-                try:
-                    mobile_tensor = self.mobilenet_transform(roi).unsqueeze(0).to(self.device)
-                    with torch.no_grad():
-                        mobile_features = self.mobilenet_model(mobile_tensor).squeeze().cpu().numpy()
-                        mobile_features = mobile_features / (np.linalg.norm(mobile_features) + 1e-8)
-                        # Pad or truncate to match ResNet size
-                        if len(mobile_features) > 2048:
-                            mobile_features = mobile_features[:2048]
-                        elif len(mobile_features) < 2048:
-                            mobile_features = np.pad(mobile_features, (0, 2048 - len(mobile_features)))
-                        ensemble_features.append(mobile_features)
-                except Exception:
-                    pass
-
-            # Combine ensemble features
-            if len(ensemble_features) == 1:
-                # Only ResNet available
-                final_features = np.pad(ensemble_features[0], (0, 2048))  # Pad to 4096
-            elif len(ensemble_features) == 2:
-                # Two models available
-                final_features = np.concatenate(ensemble_features)
-            else:
-                # All three models available - use weighted combination
-                weights = [0.5, 0.3, 0.2]  # ResNet gets highest weight
-                weighted_features = []
-                for i, features in enumerate(ensemble_features):
-                    weighted_features.append(features * weights[i])
-                final_features = np.concatenate(weighted_features)
-
-            # Final L2 normalization
-            final_features = final_features / (np.linalg.norm(final_features) + 1e-8)
-
-            # Ensure consistent output size
-            if len(final_features) > 4096:
-                final_features = final_features[:4096]
-            elif len(final_features) < 4096:
-                final_features = np.pad(final_features, (0, 4096 - len(final_features)))
-
-            return final_features
-
-        except Exception as e:
-            return np.zeros(4096)
     
     def extract_all_features(self, image: np.ndarray, bbox: np.ndarray) -> Dict[str, np.ndarray]:
         """Extract all available features with multi-scale approach"""
@@ -372,7 +212,7 @@ class MultiModalFeatureExtractor:
 
         # Multi-scale feature extraction for better robustness
         scales = [0.85, 1.0, 1.15]  # Different scales
-        multi_scale_features = {'color_hist': [], 'hog': [], 'deep': []}
+        multi_scale_features = {'color_hist': [], 'hog': []}
 
         for scale in scales:
             # Scale the bounding box
@@ -401,20 +241,17 @@ class MultiModalFeatureExtractor:
             try:
                 color_feat = self.extract_color_histogram(image, scaled_bbox)
                 hog_feat = self.extract_hog_features(image, scaled_bbox)
-                deep_feat = self.extract_deep_features(image, scaled_bbox)
 
                 # Only add valid features
                 if np.linalg.norm(color_feat) > 1e-6:
                     multi_scale_features['color_hist'].append(color_feat)
                 if np.linalg.norm(hog_feat) > 1e-6:
                     multi_scale_features['hog'].append(hog_feat)
-                if np.linalg.norm(deep_feat) > 1e-6:
-                    multi_scale_features['deep'].append(deep_feat)
             except Exception:
                 continue
 
         # Combine multi-scale features
-        for feature_type in ['color_hist', 'hog', 'deep']:
+        for feature_type in ['color_hist', 'hog']:
             if len(multi_scale_features[feature_type]) > 0:
                 # Use weighted average, giving more weight to the nominal scale (1.0)
                 if len(multi_scale_features[feature_type]) == 1:
@@ -433,8 +270,6 @@ class MultiModalFeatureExtractor:
                     features[feature_type] = self.extract_color_histogram(image, bbox)
                 elif feature_type == 'hog':
                     features[feature_type] = self.extract_hog_features(image, bbox)
-                elif feature_type == 'deep':
-                    features[feature_type] = self.extract_deep_features(image, bbox)
 
         return features
     
@@ -478,25 +313,6 @@ class MultiModalFeatureExtractor:
                 weights.append(self.feature_weights['hog'])
                 confidences.append(hog_conf)
 
-        # Deep features similarity (cosine similarity with temperature scaling)
-        if 'deep' in features1 and 'deep' in features2:
-            norm1 = np.linalg.norm(features1['deep'])
-            norm2 = np.linalg.norm(features2['deep'])
-
-            if norm1 > 1e-8 and norm2 > 1e-8:
-                deep_sim = np.dot(features1['deep'], features2['deep']) / (norm1 * norm2)
-
-                # Apply temperature scaling to sharpen the similarity
-                temperature = 0.5  # Lower temperature = sharper distribution
-                deep_sim_scaled = np.tanh(deep_sim / temperature)
-
-                # Deep feature confidence is high since they're L2 normalized
-                deep_conf = 0.95
-
-                similarities.append(deep_sim_scaled)
-                weights.append(self.feature_weights['deep'])
-                confidences.append(deep_conf)
-
         if not similarities:
             return 0.0
 
@@ -528,11 +344,11 @@ class MultiModalFeatureExtractor:
         # Use the most recent features for consensus
         recent_features = track_features_history[-min(len(track_features_history), consensus_threshold):]
 
-        feature_similarities = {'color_hist': [], 'hog': [], 'deep': []}
+        feature_similarities = {'color_hist': [], 'hog': []}
 
         # Compute similarities against multiple historical features
         for hist_features in recent_features:
-            for feature_type in ['color_hist', 'hog', 'deep']:
+            for feature_type in ['color_hist', 'hog']:
                 if feature_type in hist_features and feature_type in candidate_features:
                     if feature_type == 'color_hist':
                         # Bhattacharyya distance for color histograms
@@ -543,7 +359,7 @@ class MultiModalFeatureExtractor:
                         )
                         sim_score = 1.0 - hist_sim
                     else:
-                        # Cosine similarity for HOG and deep features
+                        # Cosine similarity for HOG features
                         norm1 = np.linalg.norm(hist_features[feature_type])
                         norm2 = np.linalg.norm(candidate_features[feature_type])
 
@@ -929,7 +745,7 @@ class RobustReidentificationSystem:
             'lost_tracks': 0
         }
 
-        print("✅ Robust re-identification system with adaptive thresholds initialized!")
+        print("✅ Robust re-identification system (color + HOG features) initialized!")
 
     def _update_environment_metrics(self, image: np.ndarray, detections: sv.Detections):
         """Update environmental metrics for adaptive thresholding"""
@@ -1342,9 +1158,7 @@ class RobustReidentificationSystem:
         for key in new_features:
             if key in track['features']:
                 # Adaptive exponential moving average based on feature type
-                if key == 'deep':
-                    alpha = 0.15  # Slower update for deep features (more stable)
-                elif key == 'hog':
+                if key == 'hog':
                     alpha = 0.12  # Moderate update for HOG features
                 else:  # color_hist
                     alpha = 0.25  # Faster update for color (changes quickly)
@@ -1544,8 +1358,9 @@ if __name__ == "__main__":
     
     print("🎯 Robust Re-identification System Ready!")
     print("Features:")
-    print("  ✅ Multi-modal feature extraction (color histograms, HOG, deep features)")
+    print("  ✅ Multi-modal feature extraction (color histograms, HOG)")
     print("  ✅ Kalman filter-based kinematic prediction")
     print("  ✅ Intelligent search region prediction")
     print("  ✅ Integration with supervision library")
     print("  ✅ Comprehensive statistics and monitoring")
+    print("  ✅ No deep learning dependencies required")

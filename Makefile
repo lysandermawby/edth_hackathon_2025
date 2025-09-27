@@ -1,7 +1,32 @@
+# Help target - show available commands
+.PHONY: help
+help:
+	@echo "Available targets:"
+	@echo ""
+	@echo "  analyse                 - Run integrated real-time tracker on default video ($(TARGET_VIDEO))"
+	@echo "  crop                    - Crop video using time configuration"
+	@echo "  map_viewer              - Launch drone video and map viewer with GPS tracking"
+	@echo "  reidentification_tracker - Run re-identification tracker on quantum drone video"
+	@echo "  help                    - Show this help message"
+	@echo ""
+	@echo "Variables:"
+	@echo "  TARGET_VIDEO=$(TARGET_VIDEO)"
+	@echo "  VIDEO_PATH=$(VIDEO_PATH)"
+	@echo "  CONFIG_PATH=$(CONFIG_PATH)"
+	@echo "  METADATA_PATH=$(METADATA_PATH)"
+	@echo ""
+	@echo "Usage examples:"
+	@echo "  make help                    # Show this help"
+	@echo "  make analyse                 # Run basic tracking"
+	@echo "  make map_viewer              # View drone video with GPS map overlay"
+	@echo "  make reidentification_tracker # Run re-identification tracker on quantum drone video"
+	@echo "  make crop                    # Crop video to specific time segments"
+
 # variable declarations
 
 TARGET_VIDEO := data/Individual_2.mp4 # default video to process
 ANALYSIS_SCRIPT := backend/tracking/integrated_realtime_tracker.py
+REIDENTIFICATION_TRACKER_SCRIPT := backend/tracking/realtime_reidentification_tracker.py
 
 # Video cropping variables
 VIDEO_PATH := data/quantum_drone_flight/2025_09_17-15_02_07_MovingObjects_44.ts
@@ -12,7 +37,9 @@ CROP_SCRIPT := backend/video_crop/video_crop.py
 MAP_VIEWER_SCRIPT := backend/tracking/drone_video_map_viewer.py
 METADATA_PATH := data/quantum_drone_flight/metadata.csv
 
-# default target
+# default target (help is shown if no target specified)
+.DEFAULT_GOAL := help
+
 analyse: 
 	@if [ -z "$(TARGET_VIDEO)" ]; then echo "Error: TARGET_VIDEO is not set"; exit 1; fi
 	@if [ -z "$(ANALYSIS_SCRIPT)" ]; then echo "Error: ANALYSIS_SCRIPT is not set"; exit 1; fi
@@ -32,5 +59,10 @@ map_viewer:
 	@if [ -z "$(METADATA_PATH)" ]; then echo "Error: METADATA_PATH is not set"; exit 1; fi
 	@echo "Running video map viewer: $(VIDEO_PATH) with metadata: $(METADATA_PATH)"
 	@python $(MAP_VIEWER_SCRIPT) $(VIDEO_PATH) $(METADATA_PATH)
+
+reidentification_tracker:
+	@if [ -z "$(VIDEO_PATH)" ]; then echo "Error: VIDEO_PATH is not set"; exit 1; fi
+	@echo "Running reidentification tracker: $(VIDEO_PATH)"
+	@python $(REIDENTIFICATION_TRACKER_SCRIPT) $(VIDEO_PATH)
 
 
