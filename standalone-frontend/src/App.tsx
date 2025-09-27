@@ -97,7 +97,6 @@ function App() {
   );
   const [generationError, setGenerationError] = useState<string | null>(null);
 
-
   useEffect(() => {
     fetchSessions();
   }, []);
@@ -523,7 +522,6 @@ function App() {
                   </div>
                 </div>
               </div>
-
             </div>
 
             {/* Main Content Area - Map Hero */}

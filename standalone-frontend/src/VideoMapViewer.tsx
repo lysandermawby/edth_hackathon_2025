@@ -384,7 +384,6 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
           </div>
         </div>
       </div>
-
     </div>
   );
 };
