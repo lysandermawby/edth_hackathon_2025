@@ -29,17 +29,26 @@ except ImportError as e:
     print("Please ensure you're in the project root and have installed dependencies")
     sys.exit(1)
 
+# Import depth estimation
+try:
+    from depth_estimator import create_depth_estimator
+    DEPTH_AVAILABLE = True
+except ImportError as e:
+    print(f"Depth estimation not available: {e}")
+    print("Depth Pro functionality will be disabled")
+    DEPTH_AVAILABLE = False
+
 class RealtimeDetectionServer:
-    def __init__(self, model_path=None, db_path=None):
+    def __init__(self, model_path=None, db_path=None, enable_depth=True):
         """Initialize the real-time detection server"""
         # Set up paths relative to project root
         project_root = Path(__file__).parent.parent
-        
+
         if model_path is None:
             model_path = project_root / "models" / "yolo11m.pt"
         if db_path is None:
             db_path = project_root / "databases" / "tracking_data.db"
-            
+
         # Initialize tracker
         self.tracker = IntegratedRealtimeTracker(
             model_path=str(model_path),
@@ -47,6 +56,22 @@ class RealtimeDetectionServer:
             headless=True,
             enable_database=True
         )
+
+        # Initialize depth estimator if available and enabled
+        self.depth_estimator = None
+        if DEPTH_AVAILABLE and enable_depth:
+            try:
+                self.depth_estimator = create_depth_estimator()
+                if self.depth_estimator.is_available():
+                    print("Depth estimation enabled using Apple Depth Pro")
+                else:
+                    print("Depth Pro model not available - depth estimation disabled")
+                    self.depth_estimator = None
+            except Exception as e:
+                print(f"Failed to initialize depth estimator: {e}")
+                self.depth_estimator = None
+        else:
+            print("Depth estimation disabled")
         
         # WebSocket connections
         self.clients = set()
@@ -161,7 +186,24 @@ class RealtimeDetectionServer:
                 
                 try:
                     annotated_frame, detections, tracking_data = self.tracker.process_frame(frame, current_timestamp)
-                    
+
+                    # Process depth estimation if available
+                    depth_map = None
+                    enhanced_objects = []
+
+                    if self.depth_estimator is not None:
+                        try:
+                            frame_id = f"frame_{self.frame_count}"
+                            depth_map, enhanced_detections = self.depth_estimator.process_frame_with_detections(
+                                frame, tracking_data['objects'], frame_id
+                            )
+                            enhanced_objects = enhanced_detections
+                        except Exception as e:
+                            print(f"Depth estimation error: {e}")
+                            enhanced_objects = tracking_data['objects']
+                    else:
+                        enhanced_objects = tracking_data['objects']
+
                     # Calculate FPS
                     processing_time = time.time() - frame_start_time
                     current_fps = 1.0 / processing_time if processing_time > 0 else 0
@@ -169,29 +211,39 @@ class RealtimeDetectionServer:
                     if len(self.fps_tracker) > 30:  # Keep last 30 frames for average
                         self.fps_tracker.pop(0)
                     avg_fps = sum(self.fps_tracker) / len(self.fps_tracker)
-                    
+
+                    # Add depth indicator to info overlay if available
+                    depth_status = "Depth: ON" if self.depth_estimator is not None else "Depth: OFF"
+                    info_text = f"Session: {session_id} | {depth_status}"
+
                     # Add info overlay
                     info_frame = self.tracker.add_info_overlay(
-                        annotated_frame.copy(), 
-                        avg_fps, 
-                        len(tracking_data['objects']),
-                        f"Session: {session_id}"
+                        annotated_frame.copy(),
+                        avg_fps,
+                        len(enhanced_objects),
+                        info_text
                     )
-                    
+
                     # Convert frame to base64
                     frame_base64 = self.frame_to_base64(info_frame)
-                    
+
                     # Prepare detection data for frontend
                     detection_objects = []
-                    for obj in tracking_data['objects']:
-                        detection_objects.append({
+                    for obj in enhanced_objects:
+                        detection_obj = {
                             "tracker_id": obj.get('tracker_id'),
                             "class_id": obj['class_id'],
                             "class_name": obj['class_name'],
                             "confidence": obj['confidence'],
                             "bbox": obj['bbox'],
                             "center": obj['center']
-                        })
+                        }
+
+                        # Add depth information if available
+                        if 'depth' in obj:
+                            detection_obj['depth'] = obj['depth']
+
+                        detection_objects.append(detection_obj)
                     
                     # Send frame and detection data to clients
                     message = {

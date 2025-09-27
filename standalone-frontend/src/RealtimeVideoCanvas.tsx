@@ -468,6 +468,23 @@ const RealtimeVideoCanvas: React.FC<RealtimeVideoCanvasProps> = ({
                   </div>
                 </>
               )}
+              {hoveredObject.depth && hoveredObject.depth.mean_depth > 0 && (
+                <>
+                  <div className="border-t border-gray-600 pt-1 mt-1">
+                    <div className="text-gray-300">
+                      <span className="text-pink-400">📏 Depth:</span> {hoveredObject.depth.mean_depth.toFixed(2)}m
+                    </div>
+                    <div className="text-xs text-gray-400">
+                      Range: {hoveredObject.depth.min_depth.toFixed(2)}m - {hoveredObject.depth.max_depth.toFixed(2)}m
+                    </div>
+                    {hoveredObject.depth.std_depth > 0 && (
+                      <div className="text-xs text-gray-400">
+                        Variance: ±{hoveredObject.depth.std_depth.toFixed(2)}m
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
             <div 
               className="absolute w-0 h-0 border-l-[6px] border-r-[6px] border-t-[6px] border-l-transparent border-r-transparent border-t-gray-900"

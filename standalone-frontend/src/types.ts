@@ -5,6 +5,16 @@ export interface BoundingBox {
   y2: number;
 }
 
+export interface DepthInfo {
+  mean_depth: number;
+  median_depth: number;
+  min_depth: number;
+  max_depth: number;
+  std_depth: number;
+  valid_pixels: number;
+  total_pixels: number;
+}
+
 export interface TrackingObject {
   tracker_id?: number;
   class_id: number;
@@ -12,6 +22,7 @@ export interface TrackingObject {
   confidence: number;
   bbox: BoundingBox;
   center?: { x: number; y: number };
+  depth?: DepthInfo;
 }
 
 export interface FrameDetections {

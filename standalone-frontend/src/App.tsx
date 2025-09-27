@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import VideoCanvas from "./VideoCanvas";
 import RealtimeVideoCanvas from "./RealtimeVideoCanvas";
 import type { Session, FrameDetections, DetectionData } from "./types";

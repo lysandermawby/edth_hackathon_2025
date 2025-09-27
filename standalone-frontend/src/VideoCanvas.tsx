@@ -440,6 +440,23 @@ const VideoCanvas: React.FC<VideoCanvasProps> = ({
                   <span className="text-cyan-400">Center:</span> ({Math.round(hoveredObject.center.x)}, {Math.round(hoveredObject.center.y)})
                 </div>
               )}
+              {hoveredObject.depth && hoveredObject.depth.mean_depth > 0 && (
+                <>
+                  <div className="border-t border-gray-600 pt-1 mt-1">
+                    <div className="text-gray-300">
+                      <span className="text-pink-400">📏 Depth:</span> {hoveredObject.depth.mean_depth.toFixed(2)}m
+                    </div>
+                    <div className="text-xs text-gray-400">
+                      Range: {hoveredObject.depth.min_depth.toFixed(2)}m - {hoveredObject.depth.max_depth.toFixed(2)}m
+                    </div>
+                    {hoveredObject.depth.std_depth > 0 && (
+                      <div className="text-xs text-gray-400">
+                        Variance: ±{hoveredObject.depth.std_depth.toFixed(2)}m
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
             {/* Arrow pointing to the object */}
             <div 
