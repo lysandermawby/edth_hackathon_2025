@@ -114,8 +114,8 @@ const DroneStatusDisplay: React.FC<DroneStatusDisplayProps> = ({
   }
 
   return (
-    <div className={`${className} cyber-card`}>
-      <div className="cyber-card-header">
+    <div className={`${className} cyber-card h-full flex flex-col`}>
+      <div className="cyber-card-header flex-shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-cyber-surface border-2 border-neon-cyan flex items-center justify-center shadow-cyber relative">
             <HiCube className="text-neon-cyan text-sm text-glow" />
@@ -131,8 +131,8 @@ const DroneStatusDisplay: React.FC<DroneStatusDisplayProps> = ({
           </div>
         </div>
       </div>
-      <div className="p-4">
-        <div className="space-y-4">
+      <div className="p-4 flex-1 flex flex-col">
+        <div className="space-y-4 flex-1">
           {/* Attitude, Gimbal & Enhanced Telemetry Layout */}
           <div
             className={`grid gap-4 ${

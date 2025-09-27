@@ -352,7 +352,7 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
         </div>
 
         {/* Right Column: Drone Telemetry */}
-        <div>
+        <div className="h-full">
           <DroneStatusDisplay
             metadata={
               hasRealGpsData && mapFrame < actualMetadata.length
@@ -361,6 +361,7 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
             }
             hasEnhancedTelemetry={hasEnhancedTelemetry}
             session={session}
+            className="h-full"
           />
         </div>
       </div>
