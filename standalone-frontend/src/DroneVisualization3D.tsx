@@ -1,6 +1,6 @@
 import React, { useRef, useMemo, useEffect } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, Text, Box, Cylinder, Sphere, RoundedBox, Environment, ContactShadows } from '@react-three/drei';
+import { OrbitControls, Text, Box, Cylinder, Sphere, Environment } from '@react-three/drei';
 import * as THREE from 'three';
 import type { DroneMetadata } from './types';
 
@@ -32,7 +32,7 @@ const PropellerBlade: React.FC<{ position: [number, number, number]; spinning?: 
       
       {/* Propeller blades */}
       <group>
-        <RoundedBox args={[1.2, 0.02, 0.08]} position={[0, 0.08, 0]} radius={0.01}>
+        <Box args={[1.2, 0.02, 0.08]} position={[0, 0.08, 0]}>
           <meshStandardMaterial 
             color="#1a1a1a" 
             metalness={0.7} 
@@ -40,8 +40,8 @@ const PropellerBlade: React.FC<{ position: [number, number, number]; spinning?: 
             transparent 
             opacity={spinning ? 0.3 : 1}
           />
-        </RoundedBox>
-        <RoundedBox args={[0.08, 0.02, 1.2]} position={[0, 0.08, 0]} radius={0.01}>
+        </Box>
+        <Box args={[0.08, 0.02, 1.2]} position={[0, 0.08, 0]}>
           <meshStandardMaterial 
             color="#1a1a1a" 
             metalness={0.7} 
@@ -49,7 +49,7 @@ const PropellerBlade: React.FC<{ position: [number, number, number]; spinning?: 
             transparent 
             opacity={spinning ? 0.3 : 1}
           />
-        </RoundedBox>
+        </Box>
       </group>
     </group>
   );
@@ -58,9 +58,9 @@ const PropellerBlade: React.FC<{ position: [number, number, number]; spinning?: 
 const DroneArm: React.FC<{ position: [number, number, number]; rotation: [number, number, number] }> = ({ position, rotation }) => {
   return (
     <group position={position} rotation={rotation}>
-      <RoundedBox args={[0.06, 0.04, 1.0]} radius={0.01}>
+      <Box args={[0.06, 0.04, 1.0]}>
         <meshStandardMaterial color="#ffffff" metalness={0.6} roughness={0.4} />
-      </RoundedBox>
+      </Box>
     </group>
   );
 };
@@ -104,9 +104,9 @@ const CameraGimbal: React.FC<{ gimbalElevation?: number; gimbalAzimuth?: number 
           </Cylinder>
           
           {/* Camera body */}
-          <RoundedBox args={[0.25, 0.15, 0.3]} radius={0.02}>
+          <Box args={[0.25, 0.15, 0.3]}>
             <meshStandardMaterial color="#333333" metalness={0.7} roughness={0.3} />
-          </RoundedBox>
+          </Box>
           
           {/* Camera lens */}
           <Cylinder args={[0.08, 0.06, 0.12]} position={[0, 0, 0.21]} rotation={[Math.PI / 2, 0, 0]}>
@@ -175,7 +175,7 @@ const DroneModel: React.FC<DroneModelProps> = ({ metadata }) => {
   return (
     <group ref={droneRef}>
       {/* Main drone body */}
-      <RoundedBox ref={bodyRef} args={[0.8, 0.2, 0.6]} radius={0.05}>
+      <Box ref={bodyRef} args={[0.8, 0.2, 0.6]}>
         <meshStandardMaterial 
           color="#00ddff" 
           metalness={0.7} 
@@ -183,16 +183,16 @@ const DroneModel: React.FC<DroneModelProps> = ({ metadata }) => {
           emissive="#003344"
           emissiveIntensity={0.1}
         />
-      </RoundedBox>
+      </Box>
 
       {/* Top cover with pattern */}
-      <RoundedBox args={[0.6, 0.05, 0.4]} position={[0, 0.125, 0]} radius={0.02}>
+      <Box args={[0.6, 0.05, 0.4]} position={[0, 0.125, 0]}>
         <meshStandardMaterial 
           color="#ffffff" 
           metalness={0.8} 
           roughness={0.2}
         />
-      </RoundedBox>
+      </Box>
 
       {/* LED strips */}
       <Box args={[0.7, 0.02, 0.02]} position={[0, 0.11, -0.29]}>
@@ -233,9 +233,9 @@ const DroneModel: React.FC<DroneModelProps> = ({ metadata }) => {
       ))}
 
       {/* Battery indicator */}
-      <RoundedBox args={[0.4, 0.08, 0.15]} position={[0, -0.05, 0]} radius={0.01}>
+      <Box args={[0.4, 0.08, 0.15]} position={[0, -0.05, 0]}>
         <meshStandardMaterial color="#222222" metalness={0.5} roughness={0.5} />
-      </RoundedBox>
+      </Box>
 
       {/* Camera gimbal */}
       <CameraGimbal gimbalElevation={gimbal_elevation} gimbalAzimuth={gimbal_azimuth} />
@@ -321,18 +321,14 @@ const Scene: React.FC<{ metadata?: DroneMetadata }> = ({ metadata }) => {
       />
       <pointLight position={[0, 3, 0]} intensity={0.3} color="#00ffff" />
 
-      {/* Ground shadows */}
-      <ContactShadows 
-        position={[0, -1, 0]} 
-        opacity={0.3} 
-        scale={5} 
-        blur={2} 
-        far={2}
-        color="#000033"
-      />
+      {/* Ground plane for shadows */}
+      <mesh position={[0, -1.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeBufferGeometry args={[10, 10]} />
+        <meshStandardMaterial color="#000033" opacity={0.3} transparent />
+      </mesh>
 
       {/* Grid floor */}
-      <gridHelper args={[10, 20, "#003333", "#001111"]} position={[0, -1, 0]} />
+      <primitive object={new THREE.GridHelper(10, 20, "#003333", "#001111")} position={[0, -1, 0]} />
 
       {/* Coordinate system */}
       <AxisHelper />

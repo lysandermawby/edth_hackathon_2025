@@ -99,18 +99,25 @@ function App() {
     null
   );
   const [generationError, setGenerationError] = useState<string | null>(null);
-  
+
   // 3D Visualization sync state
   const [currentVideoTime, setCurrentVideoTime] = useState(0);
   const [videoDuration, setVideoDuration] = useState(0);
-  const [currentMetadata, setCurrentMetadata] = useState<DroneMetadata | undefined>(undefined);
+  const [currentMetadata, setCurrentMetadata] = useState<
+    DroneMetadata | undefined
+  >(undefined);
 
   // Calculate current metadata based on video time
   useEffect(() => {
     if (selectedSession?.metadata && videoDuration > 0) {
       const videoProgress = Math.min(currentVideoTime / videoDuration, 1);
-      const metadataIndex = Math.floor(videoProgress * (selectedSession.metadata.length - 1));
-      const index = Math.max(0, Math.min(metadataIndex, selectedSession.metadata.length - 1));
+      const metadataIndex = Math.floor(
+        videoProgress * (selectedSession.metadata.length - 1)
+      );
+      const index = Math.max(
+        0,
+        Math.min(metadataIndex, selectedSession.metadata.length - 1)
+      );
       setCurrentMetadata(selectedSession.metadata[index]);
     } else {
       setCurrentMetadata(undefined);

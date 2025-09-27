@@ -108,16 +108,22 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
   }, [currentVideoTime, isMapSynced, getCurrentMetadataIndex, actualMetadata]);
 
   // Handle video time updates
-  const handleVideoTimeUpdate = useCallback((time: number) => {
-    setCurrentVideoTime(time);
-    onVideoTimeUpdate?.(time);
-  }, [onVideoTimeUpdate]);
+  const handleVideoTimeUpdate = useCallback(
+    (time: number) => {
+      setCurrentVideoTime(time);
+      onVideoTimeUpdate?.(time);
+    },
+    [onVideoTimeUpdate]
+  );
 
   // Handle duration loaded
-  const handleDurationLoad = useCallback((dur: number) => {
-    setDuration(dur);
-    onVideoDurationUpdate?.(dur);
-  }, [onVideoDurationUpdate]);
+  const handleDurationLoad = useCallback(
+    (dur: number) => {
+      setDuration(dur);
+      onVideoDurationUpdate?.(dur);
+    },
+    [onVideoDurationUpdate]
+  );
 
   const formatTime = (time: number): string => {
     if (!Number.isFinite(time)) return "0:00";
