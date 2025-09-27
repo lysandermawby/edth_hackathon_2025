@@ -510,38 +510,65 @@ app.get("/api/files/available", (req, res) => {
     const csvFiles = [];
 
     function scanDirectory(dirPath, relativePath = "") {
-      const items = fs.readdirSync(dirPath);
+      try {
+        const items = fs.readdirSync(dirPath);
 
-      for (const item of items) {
-        const fullPath = path.join(dirPath, item);
-        const itemRelativePath = path.join(relativePath, item);
-        const stats = fs.statSync(fullPath);
+        for (const item of items) {
+          const fullPath = path.join(dirPath, item);
+          const itemRelativePath = path.join(relativePath, item);
 
-        if (stats.isDirectory()) {
-          // Skip hidden directories and node_modules
-          if (!item.startsWith(".") && item !== "node_modules") {
-            scanDirectory(fullPath, itemRelativePath);
-          }
-        } else if (stats.isFile()) {
-          const ext = path.extname(item).toLowerCase();
-          if (videoExtensions.includes(ext)) {
-            videos.push({
-              filename: item,
-              path: itemRelativePath.replace(/\\/g, "/"), // Normalize path separators
-              size: stats.size,
-              modified: stats.mtime.toISOString(),
-              sizeFormatted: formatFileSize(stats.size),
-            });
-          } else if (ext === ".csv") {
-            csvFiles.push({
-              filename: item,
-              path: itemRelativePath.replace(/\\/g, "/"), // Normalize path separators
-              size: stats.size,
-              modified: stats.mtime.toISOString(),
-              sizeFormatted: formatFileSize(stats.size),
-            });
+          try {
+            const stats = fs.statSync(fullPath);
+
+            if (stats.isDirectory()) {
+              // Skip hidden directories, node_modules, and common build/cache directories
+              const skipDirs = [
+                ".",
+                "..",
+                "node_modules",
+                ".git",
+                ".vscode",
+                "__pycache__",
+                "dist",
+                "build",
+                ".next",
+                "coverage",
+              ];
+              if (!item.startsWith(".") && !skipDirs.includes(item)) {
+                console.log(`Scanning directory: ${itemRelativePath}`);
+                scanDirectory(fullPath, itemRelativePath);
+              }
+            } else if (stats.isFile()) {
+              const ext = path.extname(item).toLowerCase();
+              if (videoExtensions.includes(ext)) {
+                console.log(`Found video: ${itemRelativePath}`);
+                videos.push({
+                  filename: item,
+                  path: itemRelativePath.replace(/\\/g, "/"), // Normalize path separators
+                  directory: relativePath.replace(/\\/g, "/"),
+                  size: stats.size,
+                  modified: stats.mtime.toISOString(),
+                  sizeFormatted: formatFileSize(stats.size),
+                });
+              } else if (ext === ".csv") {
+                console.log(`Found CSV: ${itemRelativePath}`);
+                csvFiles.push({
+                  filename: item,
+                  path: itemRelativePath.replace(/\\/g, "/"), // Normalize path separators
+                  directory: relativePath.replace(/\\/g, "/"),
+                  size: stats.size,
+                  modified: stats.mtime.toISOString(),
+                  sizeFormatted: formatFileSize(stats.size),
+                });
+              }
+            }
+          } catch (itemError) {
+            console.warn(`Error accessing ${fullPath}:`, itemError.message);
+            // Continue scanning other items
           }
         }
+      } catch (dirError) {
+        console.warn(`Error reading directory ${dirPath}:`, dirError.message);
       }
     }
 
@@ -605,8 +632,8 @@ app.post("/api/sessions/import", (req, res) => {
   // Create new session in database with current timestamp
   const relativePath = videoPath; // Already relative to DATA_DIR
   const insertQuery = `
-    INSERT INTO tracking_sessions (video_path, fps, created_at)
-    VALUES (?, ?, datetime('now'))
+    INSERT INTO tracking_sessions (video_path, fps)
+    VALUES (?, ?)
   `;
 
   // Get FPS using CV2 via Python if available, otherwise default to 30
