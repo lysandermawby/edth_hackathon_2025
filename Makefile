@@ -8,6 +8,9 @@ VIDEO_PATH := data/quantum_drone_flight/2025_09_17-15_02_07_MovingObjects_44.ts
 CONFIG_PATH := data/quantum_drone_flight/time_config.json
 CROP_SCRIPT := backend/video_crop/video_crop.py
 
+# Video map viewer variables
+MAP_VIEWER_SCRIPT := backend/tracking/drone_video_map_viewer.py
+
 # default target
 analyse: 
 	@if [ -z "$(TARGET_VIDEO)" ]; then echo "Error: TARGET_VIDEO is not set"; exit 1; fi
@@ -21,4 +24,12 @@ crop:
 	@if [ -z "$(CROP_SCRIPT)" ]; then echo "Error: CROP_SCRIPT is not set"; exit 1; fi
 	@echo "Cropping video: $(VIDEO_PATH) with config: $(CONFIG_PATH)"
 	@python $(CROP_SCRIPT) $(VIDEO_PATH) --config $(CONFIG_PATH)
+
+# Video map viewer target
+map_viewer:
+	@if [ -z "$(VIDEO_PATH)" ]; then echo "Error: VIDEO_PATH is not set"; exit 1; fi
+	@if [ -z "$(CONFIG_PATH)" ]; then echo "Error: CONFIG_PATH is not set"; exit 1; fi
+	@echo "Running video map viewer: $(VIDEO_PATH) with config: $(CONFIG_PATH)"
+	@python $(MAP_VIEWER_SCRIPT) $(VIDEO_PATH) $(CONFIG_PATH)
+
 

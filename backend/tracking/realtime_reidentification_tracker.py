@@ -149,11 +149,14 @@ class RealtimeReidentificationTracker:
             self.db = None
             self.data_processor = None
         
-        # Tracking data storage
-        self.tracking_data = []
+        # Tracking state
         self.frame_count = 0
         self.start_time = None
         self.session_id = None
+        
+        # Track ID mapping for re-identification consistency
+        self.id_mapping = {}  # Maps temporary IDs to consistent IDs
+        self.next_consistent_id = 1
         
         # Re-identification statistics
         self.reid_stats = {
@@ -164,6 +167,29 @@ class RealtimeReidentificationTracker:
             'lost_tracks': 0
         }
         
+    def get_consistent_track_id(self, tracker_id):
+        """Get or assign a consistent track ID for database storage"""
+        if tracker_id is None:
+            return None
+            
+        if tracker_id not in self.id_mapping:
+            # Assign a new consistent ID
+            self.id_mapping[tracker_id] = self.next_consistent_id
+            self.next_consistent_id += 1
+            
+        return self.id_mapping[tracker_id]
+    
+    def handle_reidentified_track(self, original_id, new_id):
+        """Handle when a track is re-identified - map new ID to original consistent ID"""
+        if original_id in self.id_mapping:
+            # Map the new ID to the same consistent ID as the original
+            self.id_mapping[new_id] = self.id_mapping[original_id]
+            print(f"🔄 Mapped re-identified track {new_id} to consistent ID {self.id_mapping[original_id]}")
+        else:
+            # If original ID not found, treat as new track
+            self.id_mapping[new_id] = self.next_consistent_id
+            self.next_consistent_id += 1
+    
     def filter_detections(self, detections):
         """Filter out ignored classes"""
         if not self.ignore_classes:
@@ -224,8 +250,11 @@ class RealtimeReidentificationTracker:
                 track_id = detections.tracker_id[i]
                 is_reidentified = track_id in self.reid_system.occlusion_handler.lost_tracks
                 
+                # Use consistent track ID for database storage
+                consistent_track_id = self.get_consistent_track_id(track_id)
+                
                 obj_data = {
-                    'tracker_id': int(detections.tracker_id[i]),
+                    'tracker_id': consistent_track_id,
                     'class_id': int(detections.class_id[i]) if detections.class_id[i] is not None else None,
                     'class_name': self.model.names[detections.class_id[i]] if detections.class_id[i] is not None else "Unknown",
                     'confidence': float(detections.confidence[i]) if detections.confidence[i] is not None else None,
@@ -239,7 +268,8 @@ class RealtimeReidentificationTracker:
                         'x': float((detections.xyxy[i][0] + detections.xyxy[i][2]) / 2),
                         'y': float((detections.xyxy[i][1] + detections.xyxy[i][3]) / 2)
                     },
-                    'is_reidentified': is_reidentified
+                    'is_reidentified': is_reidentified,
+                    'original_tracker_id': int(track_id)  # Keep original ID for reference
                 }
                 frame_data['objects'].append(obj_data)
         
@@ -263,7 +293,6 @@ class RealtimeReidentificationTracker:
         
         # Extract tracking data for database
         tracking_data = self.extract_tracking_data(detections, frame_timestamp)
-        self.tracking_data.append(tracking_data)
         
         # Send to real-time data processor
         if self.data_processor:
@@ -319,6 +348,9 @@ class RealtimeReidentificationTracker:
                 # Update the tracker ID for the matched detection
                 if hasattr(detections, 'tracker_id') and detections.tracker_id is not None:
                     detections.tracker_id[det_idx] = track_id
+                
+                # Handle re-identified track ID mapping
+                self.handle_reidentified_track(track_id, track_id)
                 
                 # Update the re-identification system
                 bbox = detections.xyxy[det_idx]
@@ -647,16 +679,11 @@ class RealtimeReidentificationTracker:
                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
         
         # Controls info
-        cv2.putText(frame, "Controls: 'q'=quit, 's'=save, 'r'=reset, SPACE=pause, 'd'=save data, 'i'=reid info", 
+        cv2.putText(frame, "Controls: 'q'=quit, 's'=save, 'r'=reset, SPACE=pause, 'i'=reid info, 'm'=id mapping", 
                    (10, frame.shape[0] - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
         
         return frame
     
-    def save_tracking_data(self, output_file):
-        """Save all tracking data to JSON file with re-identification info"""
-        with open(output_file, 'w') as f:
-            json.dump(self.tracking_data, f, indent=2)
-        print(f"Tracking data saved to: {output_file}")
     
     def print_reid_info(self):
         """Print re-identification statistics"""
@@ -670,9 +697,18 @@ class RealtimeReidentificationTracker:
         print(f"Active tracks: {stats['active_tracks']}")
         print(f"Lost tracks: {stats['lost_tracks_count']}")
         print(f"New tracks: {stats['new_tracks']}")
+        print(f"ID mappings: {len(self.id_mapping)}")
         print("=" * 40)
     
-    def run(self, video_path, save_data=True):
+    def print_id_mapping(self):
+        """Print current ID mapping for debugging"""
+        print("\n🆔 Track ID Mapping:")
+        print("=" * 30)
+        for original_id, consistent_id in self.id_mapping.items():
+            print(f"Original ID {original_id} -> Consistent ID {consistent_id}")
+        print("=" * 30)
+    
+    def run(self, video_path):
         """Main loop for real-time video tracking with re-identification"""
         cap = cv2.VideoCapture(video_path)
         
@@ -698,7 +734,7 @@ class RealtimeReidentificationTracker:
         # Start database session
         if self.enable_database:
             self.session_id = self.db.start_session(video_path, fps)
-            self.data_processor.start_processing(video_path, fps)
+            self.data_processor.start_processing(video_path, fps, self.session_id)
             print(f"Database session started: {self.session_id}")
         
         print("\n=== Real-time Video Tracking with Re-identification ===")
@@ -706,9 +742,9 @@ class RealtimeReidentificationTracker:
         print("Press 's' to save current frame")
         print("Press 'r' to reset tracker")
         print("Press SPACE to pause/resume")
-        print("Press 'd' to save tracking data")
         print("Press 'i' to show database info")
         print("Press 'R' to show re-identification info")
+        print("Press 'M' to show ID mapping")
         print("=====================================================\n")
         
         self.start_time = time.time()
@@ -798,11 +834,6 @@ class RealtimeReidentificationTracker:
                     self.tracker = sv.ByteTrack()
                     self.reid_system = RobustReidentificationSystem()
                     print("Tracker and re-identification system reset")
-                elif key == ord('d'):
-                    # Save tracking data
-                    if save_data:
-                        output_file = f"{os.path.splitext(video_path)[0]}_tracking_data.json"
-                        self.save_tracking_data(output_file)
                 elif key == ord('i'):
                     # Show database info
                     if self.enable_database and self.session_id:
@@ -811,6 +842,9 @@ class RealtimeReidentificationTracker:
                 elif key == ord('R'):
                     # Show re-identification info
                     self.print_reid_info()
+                elif key == ord('M'):
+                    # Show ID mapping
+                    self.print_id_mapping()
                 elif key == ord(' '):
                     # Toggle pause
                     paused = not paused
@@ -831,10 +865,6 @@ class RealtimeReidentificationTracker:
                 self.data_processor.stop_processing(self.frame_count)
                 print(f"Database session ended: {self.session_id}")
             
-            # Auto-save tracking data if enabled
-            if save_data and self.tracking_data:
-                output_file = f"{os.path.splitext(video_path)[0]}_tracking_data.json"
-                self.save_tracking_data(output_file)
             
             # Print final re-identification statistics
             print("\n📊 Final Re-identification Statistics:")
@@ -858,8 +888,6 @@ def parse_arguments():
                        help="Show class labels on bounding boxes")
     parser.add_argument("--ignore-classes", nargs="*", default=[], 
                        help="List of class names to ignore (e.g., --ignore-classes car truck)")
-    parser.add_argument("--no-save", action="store_true", 
-                       help="Don't save tracking data to file")
     parser.add_argument("--no-database", action="store_true", 
                        help="Disable database storage")
     parser.add_argument("--db-path", type=str, default=default_db, 
@@ -881,7 +909,7 @@ def main():
         max_occlusion_frames=args.max_occlusion_frames
     )
     
-    tracker.run(args.video_path, save_data=not args.no_save)
+    tracker.run(args.video_path)
 
 if __name__ == "__main__":
     main()

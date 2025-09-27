@@ -63,14 +63,22 @@ def display_tracking_sessions(cursor):
     return tracking_sessions
 
 
-def display_tracked_objects(cursor, limit=None):
+def display_tracked_objects(cursor, limit=None, session_id=None):
     """Display the tracked objects in the database"""
-    if limit:
-        cursor.execute("SELECT * FROM tracked_objects ORDER BY id DESC LIMIT ?;", (limit,))
-        query_desc = f" (showing latest {limit})"
+    if session_id is not None:
+        if limit:
+            cursor.execute("SELECT * FROM tracked_objects WHERE session_id = ? ORDER BY id DESC LIMIT ?;", (session_id, limit))
+            query_desc = f" (session {session_id}, showing latest {limit})"
+        else:
+            cursor.execute("SELECT * FROM tracked_objects WHERE session_id = ?;", (session_id,))
+            query_desc = f" (session {session_id})"
     else:
-        cursor.execute("SELECT * FROM tracked_objects;")
-        query_desc = ""
+        if limit:
+            cursor.execute("SELECT * FROM tracked_objects ORDER BY id DESC LIMIT ?;", (limit,))
+            query_desc = f" (showing latest {limit})"
+        else:
+            cursor.execute("SELECT * FROM tracked_objects;")
+            query_desc = ""
     
     tracked_objects = cursor.fetchall()
     
@@ -90,9 +98,14 @@ def display_tracked_objects(cursor, limit=None):
     
     # Get total count if we're showing a limited set
     if limit:
-        cursor.execute("SELECT COUNT(*) FROM tracked_objects;")
-        total_count = cursor.fetchone()[0]
-        print(f"**Total objects in database: {total_count}**")
+        if session_id is not None:
+            cursor.execute("SELECT COUNT(*) FROM tracked_objects WHERE session_id = ?;", (session_id,))
+            total_count = cursor.fetchone()[0]
+            print(f"**Total objects in session {session_id}: {total_count}**")
+        else:
+            cursor.execute("SELECT COUNT(*) FROM tracked_objects;")
+            total_count = cursor.fetchone()[0]
+            print(f"**Total objects in database: {total_count}**")
     
     return tracked_objects
 
@@ -162,14 +175,15 @@ def main():
         "--show-plots",
         action="store_true",
         help="Render seaborn plots for class distributions",
+        default=False
     )
-    parser.add_argument("--show-sessions", action="store_true", 
+    parser.add_argument("--show-sessions", action="store_true", default=True,
                        help="Show tracking sessions table")
-    parser.add_argument("--show-objects", action="store_true", 
+    parser.add_argument("--show-objects", action="store_true", default=True,
                        help="Show tracked objects table")
     parser.add_argument("--object-limit", type=int, default=20, 
                        help="Limit number of objects to show (default: 20, use 0 for all)")
-    parser.add_argument("--show-schema", action="store_true", 
+    parser.add_argument("--show-schema", action="store_true", default=True,
                        help="Show database schema")
     args = parser.parse_args()
 
@@ -188,7 +202,7 @@ def main():
 
     if args.show_objects:
         object_limit = None if args.object_limit == 0 else args.object_limit
-        display_tracked_objects(cursor, object_limit)
+        display_tracked_objects(cursor, object_limit, args.session_id)
 
     cursor.close()
     conn.close()
