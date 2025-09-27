@@ -4,6 +4,8 @@ import type { FrameDetections, TrackingObject } from "./types";
 interface VideoCanvasProps {
   videoSrc: string;
   trackingData: FrameDetections[];
+  onTimeUpdate?: (currentTime: number) => void;
+  onDurationLoad?: (duration: number) => void;
 }
 
 interface PreparedTrackingData {
@@ -155,6 +157,8 @@ const drawDetections = (
 const VideoCanvas: React.FC<VideoCanvasProps> = ({
   videoSrc,
   trackingData,
+  onTimeUpdate,
+  onDurationLoad,
 }) => {
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -189,9 +193,15 @@ const VideoCanvas: React.FC<VideoCanvasProps> = ({
     const handleLoadedMetadata = (): void => {
       canvas.width = video.videoWidth || 640;
       canvas.height = video.videoHeight || 480;
-      setDuration(video.duration || 0);
+      const videoDuration = video.duration || 0;
+      setDuration(videoDuration);
       setCurrentTime(0);
       lastFrameIndexRef.current = 0;
+
+      // Notify parent component of duration
+      if (onDurationLoad) {
+        onDurationLoad(videoDuration);
+      }
     };
 
     const handleError = (e: Event): void => {
@@ -206,7 +216,13 @@ const VideoCanvas: React.FC<VideoCanvasProps> = ({
 
     const handleTimeUpdate = (): void => {
       if (!isSeeking) {
-        setCurrentTime(video.currentTime);
+        const time = video.currentTime;
+        setCurrentTime(time);
+
+        // Notify parent component of time updates
+        if (onTimeUpdate) {
+          onTimeUpdate(time);
+        }
       }
     };
 

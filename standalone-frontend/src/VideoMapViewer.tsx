@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import VideoCanvas from './VideoCanvas';
 import DroneMapViewer from './DroneMapViewer';
 import type { FrameDetections, DroneMetadata, SessionWithMetadata } from './types';
@@ -18,21 +18,56 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
   const [duration, setDuration] = useState(0);
   const [isMapSynced, setIsMapSynced] = useState(true);
   const [mapFrame, setMapFrame] = useState(0);
-  // const videoRef = useRef<HTMLVideoElement | null>(null); // Removed unused ref
 
-  // Calculate current frame based on video time and FPS
+  // Find the best matching metadata entry based on video progress
+  const getCurrentMetadataIndex = useCallback((videoTime: number, metadata: DroneMetadata[]): number => {
+    if (duration === 0 || metadata.length === 0) return 0;
+
+    // Calculate the progress through the video (0 to 1)
+    const videoProgress = Math.min(videoTime / duration, 1);
+
+    // Map video progress to metadata array index
+    const metadataIndex = Math.floor(videoProgress * (metadata.length - 1));
+
+    // Ensure we don't exceed array bounds
+    return Math.max(0, Math.min(metadataIndex, metadata.length - 1));
+  }, [duration]);
+
+  // Calculate current frame based on video time and FPS (fallback for display)
   const getCurrentFrame = useCallback((time: number): number => {
     if (!session.fps || duration === 0) return 0;
     return Math.floor(time * session.fps);
   }, [session.fps, duration]);
 
+  // Use actual metadata from session, or fallback to sample data
+  const actualMetadata: DroneMetadata[] = useMemo(() => {
+    if (session.metadata && session.metadata.length > 0) {
+      return session.metadata;
+    }
+
+    // Generate sample data proportional to video duration
+    return Array.from({ length: 50 }, (_, i) => ({
+      timestamp: i * (duration / 50),
+      latitude: 48.1351 + (i / 50) * 0.01,
+      longitude: 11.5820 + (i / 50) * 0.01,
+      altitude: 100 + Math.sin(i / 10) * 20,
+      roll: Math.sin(i / 8) * 5,
+      pitch: -15 + Math.cos(i / 6) * 3,
+      yaw: 45 + (i / 50) * 180,
+      gimbal_elevation: -30 + Math.sin(i / 4) * 10,
+      gimbal_azimuth: Math.cos(i / 5) * 15,
+      vfov: 60,
+      hfov: 90
+    }));
+  }, [session.metadata, duration]);
+
   // Update map frame when video time changes
   useEffect(() => {
     if (isMapSynced) {
-      const frame = getCurrentFrame(currentVideoTime);
-      setMapFrame(frame);
+      const metadataIndex = getCurrentMetadataIndex(currentVideoTime, actualMetadata);
+      setMapFrame(metadataIndex);
     }
-  }, [currentVideoTime, isMapSynced, getCurrentFrame]);
+  }, [currentVideoTime, isMapSynced, getCurrentMetadataIndex, actualMetadata]);
 
   // Handle video time updates
   const handleVideoTimeUpdate = useCallback((time: number) => {
@@ -44,37 +79,6 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
     setDuration(dur);
   }, []);
 
-  // Enhanced VideoCanvas that exposes time updates
-  const EnhancedVideoCanvas = () => {
-    const videoCanvasRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-      const videoElement = videoCanvasRef.current?.querySelector('video');
-      if (!videoElement) return;
-
-      const handleTimeUpdate = () => {
-        handleVideoTimeUpdate(videoElement.currentTime);
-      };
-
-      const handleLoadedMetadata = () => {
-        handleDurationLoad(videoElement.duration);
-      };
-
-      videoElement.addEventListener('timeupdate', handleTimeUpdate);
-      videoElement.addEventListener('loadedmetadata', handleLoadedMetadata);
-
-      return () => {
-        videoElement.removeEventListener('timeupdate', handleTimeUpdate);
-        videoElement.removeEventListener('loadedmetadata', handleLoadedMetadata);
-      };
-    }, []);
-
-    return (
-      <div ref={videoCanvasRef}>
-        <VideoCanvas videoSrc={videoSrc} trackingData={trackingData} />
-      </div>
-    );
-  };
 
   const formatTime = (time: number): string => {
     if (!Number.isFinite(time)) return "0:00";
@@ -83,37 +87,6 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
     return `${minutes}:${seconds.toString().padStart(2, "0")}`;
   };
 
-  // Use actual metadata from session, or fallback to sample data
-  const actualMetadata: DroneMetadata[] = session.metadata && session.metadata.length > 0
-    ? session.metadata
-    : [
-        {
-          timestamp: 0,
-          latitude: 48.1351,
-          longitude: 11.5820,
-          altitude: 100,
-          roll: 0,
-          pitch: -15,
-          yaw: 45,
-          gimbal_elevation: -30,
-          gimbal_azimuth: 0,
-          vfov: 60,
-          hfov: 90
-        },
-        {
-          timestamp: 1,
-          latitude: 48.1352,
-          longitude: 11.5821,
-          altitude: 105,
-          roll: 2,
-          pitch: -12,
-          yaw: 47,
-          gimbal_elevation: -28,
-          gimbal_azimuth: 5,
-          vfov: 60,
-          hfov: 90
-        }
-      ];
 
   const hasRealGpsData = session.metadata && session.metadata.length > 0;
 
@@ -142,7 +115,7 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
                 <input
                   type="range"
                   min={0}
-                  max={Math.max(trackingData.length - 1, 100)}
+                  max={Math.max(actualMetadata.length - 1, 0)}
                   value={mapFrame}
                   onChange={(e) => setMapFrame(Number(e.target.value))}
                   className="w-32"
@@ -156,8 +129,13 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
 
           <div className="text-sm text-gray-600">
             Video: {formatTime(currentVideoTime)} / {formatTime(duration)} •
-            Frame: {getCurrentFrame(currentVideoTime)} •
-            Map Frame: {mapFrame}
+            Progress: {duration > 0 ? ((currentVideoTime / duration) * 100).toFixed(1) : 0}% •
+            Map: {mapFrame}/{actualMetadata.length - 1}
+            {actualMetadata.length > 0 && mapFrame < actualMetadata.length && (
+              <span className="ml-2 text-blue-600">
+                @ GPS#{mapFrame} ({actualMetadata[mapFrame].timestamp.toFixed(2)}s)
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -178,9 +156,22 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
                 <strong>Detections:</strong>{" "}
                 {trackingData.reduce((acc, frame) => acc + frame.objects.length, 0)}
               </p>
+              {session.metadata && session.metadata.length > 0 && (
+                <p>
+                  <strong>GPS Points:</strong> {session.metadata.length}
+                  <span className="text-xs ml-2">
+                    ({session.metadata[0].timestamp.toFixed(2)}s - {session.metadata[session.metadata.length - 1].timestamp.toFixed(2)}s)
+                  </span>
+                </p>
+              )}
             </div>
 
-            <EnhancedVideoCanvas />
+            <VideoCanvas
+              videoSrc={videoSrc}
+              trackingData={trackingData}
+              onTimeUpdate={handleVideoTimeUpdate}
+              onDurationLoad={handleDurationLoad}
+            />
           </div>
         </div>
 
