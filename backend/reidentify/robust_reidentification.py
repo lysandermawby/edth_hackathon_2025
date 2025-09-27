@@ -115,12 +115,12 @@ class KinematicPredictor:
             self.kf.F[0, 2] = dt
             self.kf.F[1, 3] = dt
             self.kf.predict()
-            self.kf.update([x, y])
+            self.kf.update(np.array([x, y]))
         else:
             self.kf.F[0, 2] = dt
             self.kf.F[1, 3] = dt
             self.kf.predict()
-            self.kf.update([x, y])
+            self.kf.update(np.array([x, y]))
         
     def predict(self, dt: float) -> Tuple[float, float, float, float]:
         """Predict future position"""

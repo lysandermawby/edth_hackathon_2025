@@ -14,6 +14,7 @@ from ultralytics import YOLO
 import numpy as np
 import time
 import json
+import traceback
 from datetime import datetime
 import threading
 import queue
@@ -27,9 +28,11 @@ if reidentify_path not in sys.path:
 
 try:
     from robust_reidentification import RobustReidentificationSystem
-except ImportError:
+except ImportError as e:
     print("Warning: Could not import robust_reidentification module")
     print("Please ensure the reidentify module is in the correct location")
+    print("\nFull traceback:")
+    traceback.print_exc()
     sys.exit(1)
 
 # Get the directory where this script is located
@@ -488,7 +491,8 @@ class RealtimeReidentificationTracker:
                             info['features'], det_features
                         )
                         feature_scores.append(similarity)
-                    except:
+                    except Exception as e:
+                        print(f"Warning: Feature extraction failed for {method_name}: {e}")
                         feature_scores.append(0.0)
                 
                 # Use the best feature score
@@ -684,7 +688,20 @@ class RealtimeReidentificationTracker:
                     
                     # Process frame
                     start_process = time.time()
-                    annotated_frame, detections, tracking_data = self.process_frame(frame, frame_timestamp)
+                    try:
+                        annotated_frame, detections, tracking_data = self.process_frame(frame, frame_timestamp)
+                    except Exception as e:
+                        print(f"Error processing frame {self.frame_count}: {e}")
+                        print("Full traceback:")
+                        traceback.print_exc()
+                        # Create a dummy frame to continue processing
+                        annotated_frame = frame.copy()
+                        detections = sv.Detections.empty()
+                        tracking_data = {
+                            'frame_number': self.frame_count,
+                            'timestamp': frame_timestamp,
+                            'objects': []
+                        }
                     process_time = time.time() - start_process
                     
                     # Calculate FPS
@@ -762,6 +779,8 @@ class RealtimeReidentificationTracker:
             print("\nInterrupted by user")
         except Exception as e:
             print(f"Error: {e}")
+            print("\nFull traceback:")
+            traceback.print_exc()
         finally:
             cap.release()
             cv2.destroyAllWindows()

@@ -13,7 +13,6 @@ import supervision as sv
 from ultralytics import YOLO
 import numpy as np
 import time
-import json
 from datetime import datetime
 import threading
 import queue
@@ -92,8 +91,7 @@ class IntegratedRealtimeTracker:
             self.db = None
             self.data_processor = None
         
-        # Tracking data storage
-        self.tracking_data = []
+        # Tracking state
         self.frame_count = 0
         self.start_time = None
         self.session_id = None
@@ -107,6 +105,20 @@ class IntegratedRealtimeTracker:
     def _detect_headless_mode(self):
         """Detect if running in headless environment (WSL2, no display, etc.)"""
         system = platform.system()
+        
+        # On macOS and Windows, always test GUI directly since they don't use DISPLAY/WAYLAND
+        if system in ['Darwin', 'Windows']:
+            print(f"Testing GUI on {system}...")
+            try:
+                test_img = np.zeros((100, 100, 3), dtype=np.uint8)
+                cv2.imshow('test', test_img)
+                cv2.waitKey(1)
+                cv2.destroyAllWindows()
+                print(f"GUI test successful on {system}")
+                return False  # GUI is available
+            except Exception as e:
+                print(f"GUI test failed on {system}: {e}")
+                return True  # GUI not available
         
         # For Linux/Unix systems, check environment variables first
         # Check for WSL2 with WSLg (Wayland support)
@@ -215,7 +227,6 @@ class IntegratedRealtimeTracker:
         
         # Extract tracking data for database
         tracking_data = self.extract_tracking_data(detections, frame_timestamp)
-        self.tracking_data.append(tracking_data)
         
         # Send to real-time data processor
         if self.data_processor:
@@ -251,18 +262,13 @@ class IntegratedRealtimeTracker:
                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
         
         # Controls info
-        cv2.putText(frame, "Controls: 'q'=quit, 's'=save, 'r'=reset, SPACE=pause, 'd'=save data", 
+        cv2.putText(frame, "Controls: 'q'=quit, 's'=save, 'r'=reset, SPACE=pause, 'i'=db info", 
                    (10, frame.shape[0] - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
         
         return frame
     
-    def save_tracking_data(self, output_file):
-        """Save all tracking data to JSON file"""
-        with open(output_file, 'w') as f:
-            json.dump(self.tracking_data, f, indent=2)
-        print(f"Tracking data saved to: {output_file}")
     
-    def run(self, video_path, save_data=True):
+    def run(self, video_path):
         """Main loop for integrated real-time video tracking"""
         cap = cv2.VideoCapture(video_path)
         
@@ -302,7 +308,6 @@ class IntegratedRealtimeTracker:
             print("Press 's' to save current frame")
             print("Press 'r' to reset tracker")
             print("Press SPACE to pause/resume")
-            print("Press 'd' to save tracking data")
             print("Press 'i' to show database info")
             print("==========================================\n")
         
@@ -390,11 +395,6 @@ class IntegratedRealtimeTracker:
                         # Reset tracker
                         self.tracker = sv.ByteTrack()
                         print("Tracker reset")
-                    elif key == ord('d'):
-                        # Save tracking data
-                        if save_data:
-                            output_file = f"{os.path.splitext(video_path)[0]}_tracking_data.json"
-                            self.save_tracking_data(output_file)
                     elif key == ord('i'):
                         # Show database info
                         if self.enable_database and self.session_id:
@@ -421,10 +421,6 @@ class IntegratedRealtimeTracker:
                 self.data_processor.stop_processing(self.frame_count)
                 print(f"Database session ended: {self.session_id}")
             
-            # Auto-save tracking data if enabled
-            if save_data and self.tracking_data:
-                output_file = f"{os.path.splitext(video_path)[0]}_tracking_data.json"
-                self.save_tracking_data(output_file)
             
             if self.headless:
                 print(f"Headless processing complete! Check {self.output_dir} for saved frames.")
@@ -447,14 +443,14 @@ def parse_arguments():
                        help="Show class labels on bounding boxes")
     parser.add_argument("--ignore-classes", nargs="*", default=[], 
                        help="List of class names to ignore (e.g., --ignore-classes car truck)")
-    parser.add_argument("--no-save", action="store_true", 
-                       help="Don't save tracking data to file")
     parser.add_argument("--no-database", action="store_true", 
                        help="Disable database storage")
     parser.add_argument("--headless", action="store_true", 
                        help="Force headless mode (no GUI display)")
     parser.add_argument("--gui", action="store_true", 
                        help="Force GUI mode (override headless detection)")
+    parser.add_argument("--force-gui", action="store_true", 
+                       help="Force GUI mode and skip headless detection entirely")
     parser.add_argument("--db-path", type=str, default=default_db, 
                        help=f"Path to SQLite database file (default: {default_db})")
     return parser.parse_args()
@@ -465,10 +461,13 @@ def main():
     
     # Handle GUI/headless mode flags
     headless_mode = args.headless
-    force_gui = args.gui
+    force_gui = args.gui or args.force_gui
     if args.gui:
         headless_mode = False
         print("Forcing GUI mode (--gui flag detected)")
+    if args.force_gui:
+        headless_mode = False
+        print("Forcing GUI mode (--force-gui flag detected)")
     
     tracker = IntegratedRealtimeTracker(
         model_path=args.model,
@@ -480,7 +479,7 @@ def main():
         force_gui=force_gui
     )
     
-    tracker.run(args.video_path, save_data=not args.no_save)
+    tracker.run(args.video_path)
 
 if __name__ == "__main__":
     main()
