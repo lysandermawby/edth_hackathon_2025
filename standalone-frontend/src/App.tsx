@@ -291,7 +291,7 @@ function App() {
       <div className="w-full min-h-0 flex-1">
         {viewMode === "realtime" ? (
           /* Real-time Detection Mode */
-          <div className="h-[calc(100vh-120px)] p-6 cyber-scan">
+          <div className="min-h-[calc(100vh-120px)] p-6 cyber-scan overflow-y-auto">
             {/* Realtime Header */}
             <div className="cyber-card">
               <div className="cyber-card-header">
