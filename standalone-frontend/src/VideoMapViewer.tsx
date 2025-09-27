@@ -1,7 +1,25 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import VideoCanvas from './VideoCanvas';
-import DroneMapViewer from './DroneMapViewer';
-import type { FrameDetections, DroneMetadata, SessionWithMetadata, EnhancedTelemetryPoint } from './types';
+import React, { useState, useEffect, useCallback, useMemo } from "react";
+import {
+  HiVideoCamera,
+  HiMap,
+  HiCog,
+  HiLink,
+  HiChartBar,
+  HiWifi,
+  HiLocationMarker,
+  HiPlay,
+  HiBookOpen,
+  HiAdjustments,
+} from "react-icons/hi";
+import { MdGpsFixed, MdVideocam, MdAnalytics } from "react-icons/md";
+import VideoCanvas from "./VideoCanvas";
+import DroneMapViewer from "./DroneMapViewer";
+import type {
+  FrameDetections,
+  DroneMetadata,
+  SessionWithMetadata,
+  EnhancedTelemetryPoint,
+} from "./types";
 
 interface VideoMapViewerProps {
   session: SessionWithMetadata;
@@ -12,7 +30,7 @@ interface VideoMapViewerProps {
 const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
   session,
   trackingData,
-  videoSrc
+  videoSrc,
 }) => {
   const [currentVideoTime, setCurrentVideoTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -20,24 +38,30 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
   const [mapFrame, setMapFrame] = useState(0);
 
   // Find the best matching metadata entry based on video progress
-  const getCurrentMetadataIndex = useCallback((videoTime: number, metadata: DroneMetadata[]): number => {
-    if (duration === 0 || metadata.length === 0) return 0;
+  const getCurrentMetadataIndex = useCallback(
+    (videoTime: number, metadata: DroneMetadata[]): number => {
+      if (duration === 0 || metadata.length === 0) return 0;
 
-    // Calculate the progress through the video (0 to 1)
-    const videoProgress = Math.min(videoTime / duration, 1);
+      // Calculate the progress through the video (0 to 1)
+      const videoProgress = Math.min(videoTime / duration, 1);
 
-    // Map video progress to metadata array index
-    const metadataIndex = Math.floor(videoProgress * (metadata.length - 1));
+      // Map video progress to metadata array index
+      const metadataIndex = Math.floor(videoProgress * (metadata.length - 1));
 
-    // Ensure we don't exceed array bounds
-    return Math.max(0, Math.min(metadataIndex, metadata.length - 1));
-  }, [duration]);
+      // Ensure we don't exceed array bounds
+      return Math.max(0, Math.min(metadataIndex, metadata.length - 1));
+    },
+    [duration]
+  );
 
   // Use enhanced telemetry if available, otherwise fall back to legacy metadata or sample data
   const actualMetadata: DroneMetadata[] = useMemo(() => {
     // Priority 1: Enhanced telemetry (most accurate with camera footprints)
-    if (session.enhanced_telemetry?.telemetry && session.enhanced_telemetry.telemetry.length > 0) {
-      return session.enhanced_telemetry.telemetry.map(point => ({
+    if (
+      session.enhanced_telemetry?.telemetry &&
+      session.enhanced_telemetry.telemetry.length > 0
+    ) {
+      return session.enhanced_telemetry.telemetry.map((point) => ({
         timestamp: point.timestamp,
         latitude: point.latitude,
         longitude: point.longitude,
@@ -48,7 +72,7 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
         gimbal_elevation: point.gimbal_elevation,
         gimbal_azimuth: point.gimbal_azimuth,
         vfov: point.vfov,
-        hfov: point.hfov
+        hfov: point.hfov,
       }));
     }
 
@@ -61,7 +85,7 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
     return Array.from({ length: 50 }, (_, i) => ({
       timestamp: i * (duration / 50),
       latitude: 48.1351 + (i / 50) * 0.01,
-      longitude: 11.5820 + (i / 50) * 0.01,
+      longitude: 11.582 + (i / 50) * 0.01,
       altitude: 100 + Math.sin(i / 10) * 20,
       roll: Math.sin(i / 8) * 5,
       pitch: -15 + Math.cos(i / 6) * 3,
@@ -69,14 +93,17 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
       gimbal_elevation: -30 + Math.sin(i / 4) * 10,
       gimbal_azimuth: Math.cos(i / 5) * 15,
       vfov: 60,
-      hfov: 90
+      hfov: 90,
     }));
   }, [session.enhanced_telemetry, session.metadata, duration]);
 
   // Update map frame when video time changes
   useEffect(() => {
     if (isMapSynced) {
-      const metadataIndex = getCurrentMetadataIndex(currentVideoTime, actualMetadata);
+      const metadataIndex = getCurrentMetadataIndex(
+        currentVideoTime,
+        actualMetadata
+      );
       setMapFrame(metadataIndex);
     }
   }, [currentVideoTime, isMapSynced, getCurrentMetadataIndex, actualMetadata]);
@@ -91,7 +118,6 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
     setDuration(dur);
   }, []);
 
-
   const formatTime = (time: number): string => {
     if (!Number.isFinite(time)) return "0:00";
     const minutes = Math.floor(time / 60);
@@ -99,106 +125,207 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
     return `${minutes}:${seconds.toString().padStart(2, "0")}`;
   };
 
-
   const hasRealGpsData = session.metadata && session.metadata.length > 0;
-  const hasEnhancedTelemetry = session.enhanced_telemetry?.telemetry && session.enhanced_telemetry.telemetry.length > 0;
+  const hasEnhancedTelemetry =
+    session.enhanced_telemetry?.telemetry &&
+    session.enhanced_telemetry.telemetry.length > 0;
 
   return (
     <div className="space-y-6">
-      {/* Sync Control */}
-      <div className="bg-white rounded-lg p-4 shadow-md border border-gray-200">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="sync-map"
-                checked={isMapSynced}
-                onChange={(e) => setIsMapSynced(e.target.checked)}
-                className="rounded"
-              />
-              <label htmlFor="sync-map" className="text-sm font-medium">
-                🔗 Sync Map with Video
-              </label>
+      {/* Sync Control Panel */}
+      <div className="card">
+        <div className="card-header">
+          <div className="flex items-center gap-3">
+            <div className="w-6 h-6 bg-secondary-600 rounded flex items-center justify-center">
+              <HiCog className="text-white text-sm" />
+            </div>
+            <h4 className="font-semibold text-neutral-900">
+              Synchronization Controls
+            </h4>
+          </div>
+        </div>
+        <div className="p-4">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="flex items-center gap-6">
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  id="sync-map"
+                  checked={isMapSynced}
+                  onChange={(e) => setIsMapSynced(e.target.checked)}
+                  className="w-4 h-4 text-primary-600 rounded focus:ring-primary-500"
+                />
+                <label
+                  htmlFor="sync-map"
+                  className="text-sm font-medium text-neutral-900 flex items-center gap-2"
+                >
+                  <HiLink className="w-4 h-4" />
+                  Auto-sync with video
+                </label>
+              </div>
+
+              {!isMapSynced && (
+                <div className="flex items-center gap-3">
+                  <label className="text-sm text-neutral-600">
+                    Manual frame:
+                  </label>
+                  <input
+                    type="range"
+                    min={0}
+                    max={Math.max(actualMetadata.length - 1, 0)}
+                    value={mapFrame}
+                    onChange={(e) => setMapFrame(Number(e.target.value))}
+                    className="w-32 h-2 bg-neutral-200 rounded-lg appearance-none cursor-pointer"
+                  />
+                  <span className="text-sm font-mono text-neutral-700 min-w-[60px] px-2 py-1 bg-neutral-100 rounded">
+                    {mapFrame}
+                  </span>
+                </div>
+              )}
             </div>
 
-            {!isMapSynced && (
-              <div className="flex items-center space-x-2">
-                <label className="text-sm">Manual Frame:</label>
-                <input
-                  type="range"
-                  min={0}
-                  max={Math.max(actualMetadata.length - 1, 0)}
-                  value={mapFrame}
-                  onChange={(e) => setMapFrame(Number(e.target.value))}
-                  className="w-32"
-                />
-                <span className="text-sm text-gray-600 min-w-[60px]">
-                  {mapFrame}
+            <div className="text-sm text-neutral-600 space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="font-medium">Video:</span>
+                <span className="font-mono">
+                  {formatTime(currentVideoTime)} / {formatTime(duration)}
+                </span>
+                <span className="px-2 py-1 bg-primary-100 text-primary-700 rounded text-xs">
+                  {duration > 0
+                    ? ((currentVideoTime / duration) * 100).toFixed(1)
+                    : 0}
+                  %
                 </span>
               </div>
-            )}
-          </div>
-
-          <div className="text-sm text-gray-600">
-            Video: {formatTime(currentVideoTime)} / {formatTime(duration)} •
-            Progress: {duration > 0 ? ((currentVideoTime / duration) * 100).toFixed(1) : 0}% •
-            Map: {mapFrame}/{actualMetadata.length - 1}
-            {actualMetadata.length > 0 && mapFrame < actualMetadata.length && (
-              <span className="ml-2 text-blue-600">
-                @ GPS#{mapFrame} ({actualMetadata[mapFrame].timestamp.toFixed(2)}s)
-              </span>
-            )}
+              <div className="flex items-center gap-2">
+                <span className="font-medium">Map:</span>
+                <span className="font-mono">
+                  {mapFrame}/{actualMetadata.length - 1}
+                </span>
+                {actualMetadata.length > 0 &&
+                  mapFrame < actualMetadata.length && (
+                    <span className="px-2 py-1 bg-secondary-100 text-secondary-700 rounded text-xs">
+                      GPS#{mapFrame} @{" "}
+                      {actualMetadata[mapFrame].timestamp.toFixed(2)}s
+                    </span>
+                  )}
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Video Player */}
-        <div className="bg-white rounded-xl p-6 shadow-xl">
-          <h3 className="text-lg font-semibold text-gray-700 mb-4">
-            📹 Video with Object Detection
-          </h3>
-          <div className="space-y-4">
-            <div className="text-sm text-gray-600 border-b pb-2">
-              <p><strong>Video:</strong> {session.video_path.split('/').pop()}</p>
-              <p><strong>Frames:</strong> {trackingData.length}</p>
-              <p><strong>FPS:</strong> {session.fps}</p>
-              <p>
-                <strong>Detections:</strong>{" "}
-                {trackingData.reduce((acc, frame) => acc + frame.objects.length, 0)}
-              </p>
-              {hasEnhancedTelemetry && (
-                <p>
-                  <strong>📡 Enhanced Telemetry:</strong> {session.enhanced_telemetry!.telemetry.length} points
-                  <span className="text-xs ml-2 text-green-600">
-                    ✓ Camera footprints, flight analytics
-                  </span>
+      {/* Main Content Grid */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        {/* Video Player Panel */}
+        <div className="card">
+          <div className="card-header">
+            <div className="flex items-center gap-3">
+              <div className="w-6 h-6 bg-primary-600 rounded flex items-center justify-center">
+                <HiVideoCamera className="text-white text-sm" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-neutral-900">
+                  Video Analysis
+                </h3>
+                <p className="text-xs text-neutral-600">
+                  {session.video_path.split("/").pop()}
                 </p>
-              )}
-              {!hasEnhancedTelemetry && session.metadata && session.metadata.length > 0 && (
-                <p>
-                  <strong>📍 GPS Points:</strong> {session.metadata.length}
-                  <span className="text-xs ml-2">
-                    ({session.metadata[0].timestamp.toFixed(2)}s - {session.metadata[session.metadata.length - 1].timestamp.toFixed(2)}s)
+              </div>
+            </div>
+          </div>
+          <div className="card-body space-y-4">
+            {/* Video Metadata */}
+            <div className="grid grid-cols-2 gap-4 p-3 bg-neutral-50 rounded-lg">
+              <div className="text-center">
+                <div className="text-lg font-bold text-primary-600">
+                  {trackingData.length}
+                </div>
+                <div className="text-xs text-neutral-600">Frames</div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-bold text-success-600">
+                  {trackingData.reduce(
+                    (acc, frame) => acc + frame.objects.length,
+                    0
+                  )}
+                </div>
+                <div className="text-xs text-neutral-600">Detections</div>
+              </div>
+            </div>
+
+            {/* Enhanced Telemetry Info */}
+            {hasEnhancedTelemetry && (
+              <div className="p-3 bg-success-50 border border-success-200 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <HiWifi className="text-success-600 w-4 h-4" />
+                  <span className="text-sm font-medium text-success-800">
+                    Enhanced Telemetry Active
                   </span>
-                </p>
-              )}
-              {hasEnhancedTelemetry && session.enhanced_telemetry!.analytics && (
-                <div className="text-xs text-gray-600 mt-2 space-y-1">
-                  <p>
-                    <strong>Flight:</strong> {session.enhanced_telemetry!.analytics.flight_duration.toFixed(1)}s • 
-                    {session.enhanced_telemetry!.analytics.total_distance.toFixed(0)}m distance • 
-                    {session.enhanced_telemetry!.analytics.avg_speed.toFixed(1)}m/s avg speed
-                  </p>
-                  <p>
-                    <strong>Coverage:</strong> {(session.enhanced_telemetry!.analytics.coverage_area / 10000).toFixed(1)} hectares • 
-                    Alt: {session.enhanced_telemetry!.analytics.min_altitude.toFixed(0)}-{session.enhanced_telemetry!.analytics.max_altitude.toFixed(0)}m
-                  </p>
+                </div>
+                <div className="text-xs text-success-700">
+                  {session.enhanced_telemetry!.telemetry.length} GPS points •
+                  Camera footprints • Flight analytics
+                </div>
+                {session.enhanced_telemetry!.analytics && (
+                  <div className="mt-2 text-xs text-success-700 space-y-1">
+                    <div>
+                      Duration:{" "}
+                      {session.enhanced_telemetry!.analytics.flight_duration.toFixed(
+                        1
+                      )}
+                      s • Distance:{" "}
+                      {session.enhanced_telemetry!.analytics.total_distance.toFixed(
+                        0
+                      )}
+                      m • Speed:{" "}
+                      {session.enhanced_telemetry!.analytics.avg_speed.toFixed(
+                        1
+                      )}
+                      m/s
+                    </div>
+                    <div>
+                      Coverage:{" "}
+                      {(
+                        session.enhanced_telemetry!.analytics.coverage_area /
+                        10000
+                      ).toFixed(1)}{" "}
+                      hectares • Altitude:{" "}
+                      {session.enhanced_telemetry!.analytics.min_altitude.toFixed(
+                        0
+                      )}
+                      -
+                      {session.enhanced_telemetry!.analytics.max_altitude.toFixed(
+                        0
+                      )}
+                      m
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Basic GPS Info */}
+            {!hasEnhancedTelemetry &&
+              session.metadata &&
+              session.metadata.length > 0 && (
+                <div className="p-3 bg-primary-50 border border-primary-200 rounded-lg">
+                  <div className="flex items-center gap-2 mb-1">
+                    <HiLocationMarker className="text-primary-600 w-4 h-4" />
+                    <span className="text-sm font-medium text-primary-800">
+                      GPS Data Available
+                    </span>
+                  </div>
+                  <div className="text-xs text-primary-700">
+                    {session.metadata.length} GPS points •
+                    {session.metadata[0].timestamp.toFixed(2)}s -{" "}
+                    {session.metadata[
+                      session.metadata.length - 1
+                    ].timestamp.toFixed(2)}
+                    s
+                  </div>
                 </div>
               )}
-            </div>
 
             <VideoCanvas
               videoSrc={videoSrc}
@@ -209,95 +336,213 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
           </div>
         </div>
 
-        {/* Drone Map */}
-        <div className="bg-white rounded-xl p-6 shadow-xl">
-          <h3 className="text-lg font-semibold text-gray-700 mb-4">
-            {hasRealGpsData ? "🗺️ Drone Position & Flight Path" : "🗺️ No GPS data available"}
-          </h3>
-          <div className="aspect-square">
-            <DroneMapViewer
-              metadata={actualMetadata}
-              currentFrame={mapFrame}
-              className="w-full h-full"
-              enhancedTelemetry={hasEnhancedTelemetry ? session.enhanced_telemetry!.telemetry : undefined}
-              showFootprints={hasEnhancedTelemetry}
-            />
+        {/* Drone Map Panel */}
+        <div className="card">
+          <div className="card-header">
+            <div className="flex items-center gap-3">
+              <div className="w-6 h-6 bg-secondary-600 rounded flex items-center justify-center">
+                <HiMap className="text-white text-sm" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-neutral-900">
+                  {hasRealGpsData ? "Flight Path & Position" : "Map View"}
+                </h3>
+                <p className="text-xs text-neutral-600">
+                  {hasRealGpsData
+                    ? "Real-time GPS tracking"
+                    : "No GPS data available"}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="card-body">
+            <div className="aspect-square rounded-xl overflow-hidden border border-neutral-200">
+              <DroneMapViewer
+                metadata={actualMetadata}
+                currentFrame={mapFrame}
+                className="w-full h-full"
+                enhancedTelemetry={
+                  hasEnhancedTelemetry
+                    ? session.enhanced_telemetry!.telemetry
+                    : undefined
+                }
+                showFootprints={hasEnhancedTelemetry}
+              />
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Flight Data Display */}
+      {/* Flight Telemetry Display */}
       {hasRealGpsData && (
-        <div className="bg-white rounded-xl p-6 shadow-xl">
-          <h3 className="text-lg font-semibold text-gray-700 mb-4">
-            📊 Flight Telemetry Data
-          </h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-            {mapFrame < actualMetadata.length && (
-              <>
-                <div className="text-center p-3 bg-blue-50 rounded-lg">
-                  <div className="text-sm text-gray-600">Latitude</div>
-                  <div className="font-mono text-lg">
+        <div className="card">
+          <div className="card-header">
+            <div className="flex items-center gap-3">
+              <div className="w-6 h-6 bg-warning-600 rounded flex items-center justify-center">
+                <HiChartBar className="text-white text-sm" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-neutral-900">
+                  Live Telemetry
+                </h3>
+                <p className="text-xs text-neutral-600">
+                  Frame {mapFrame} telemetry data
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="card-body">
+            {mapFrame < actualMetadata.length ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+                <div className="metric-display bg-gradient-to-br from-primary-50 to-primary-100 border-primary-200">
+                  <div className="text-xs text-primary-600 font-medium">
+                    Latitude
+                  </div>
+                  <div className="text-lg font-mono font-bold text-primary-800">
                     {actualMetadata[mapFrame].latitude.toFixed(6)}°
                   </div>
                 </div>
-                <div className="text-center p-3 bg-green-50 rounded-lg">
-                  <div className="text-sm text-gray-600">Longitude</div>
-                  <div className="font-mono text-lg">
+                <div className="metric-display bg-gradient-to-br from-success-50 to-success-100 border-success-200">
+                  <div className="text-xs text-success-600 font-medium">
+                    Longitude
+                  </div>
+                  <div className="text-lg font-mono font-bold text-success-800">
                     {actualMetadata[mapFrame].longitude.toFixed(6)}°
                   </div>
                 </div>
-                <div className="text-center p-3 bg-purple-50 rounded-lg">
-                  <div className="text-sm text-gray-600">Altitude</div>
-                  <div className="font-mono text-lg">
+                <div className="metric-display bg-gradient-to-br from-secondary-50 to-secondary-100 border-secondary-200">
+                  <div className="text-xs text-secondary-600 font-medium">
+                    Altitude
+                  </div>
+                  <div className="text-lg font-mono font-bold text-secondary-800">
                     {actualMetadata[mapFrame].altitude.toFixed(1)}m
                   </div>
                 </div>
-                <div className="text-center p-3 bg-yellow-50 rounded-lg">
-                  <div className="text-sm text-gray-600">Yaw</div>
-                  <div className="font-mono text-lg">
+                <div className="metric-display bg-gradient-to-br from-warning-50 to-warning-100 border-warning-200">
+                  <div className="text-xs text-warning-600 font-medium">
+                    Yaw
+                  </div>
+                  <div className="text-lg font-mono font-bold text-warning-800">
                     {actualMetadata[mapFrame].yaw.toFixed(1)}°
                   </div>
                 </div>
-                <div className="text-center p-3 bg-red-50 rounded-lg">
-                  <div className="text-sm text-gray-600">Pitch</div>
-                  <div className="font-mono text-lg">
+                <div className="metric-display bg-gradient-to-br from-accent-50 to-accent-100 border-accent-200">
+                  <div className="text-xs text-accent-600 font-medium">
+                    Pitch
+                  </div>
+                  <div className="text-lg font-mono font-bold text-accent-800">
                     {actualMetadata[mapFrame].pitch.toFixed(1)}°
                   </div>
                 </div>
-                <div className="text-center p-3 bg-orange-50 rounded-lg">
-                  <div className="text-sm text-gray-600">Roll</div>
-                  <div className="font-mono text-lg">
+                <div className="metric-display bg-gradient-to-br from-neutral-50 to-neutral-100 border-neutral-200">
+                  <div className="text-xs text-neutral-600 font-medium">
+                    Roll
+                  </div>
+                  <div className="text-lg font-mono font-bold text-neutral-800">
                     {actualMetadata[mapFrame].roll.toFixed(1)}°
                   </div>
                 </div>
-              </>
+              </div>
+            ) : (
+              <div className="text-center py-8 text-neutral-500">
+                <HiWifi className="text-neutral-400 text-2xl mb-2 mx-auto" />
+                <div className="font-medium">No telemetry data</div>
+                <div className="text-sm">
+                  No GPS data available for current frame
+                </div>
+              </div>
             )}
           </div>
         </div>
       )}
 
-      {/* Instructions */}
-      <div className="bg-blue-50 rounded-xl p-6 border border-blue-200">
-        <h3 className="text-lg font-semibold text-blue-700 mb-3">
-          🎮 How to Use
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-blue-700">
-          <div>
-            <h4 className="font-medium mb-2">Video Controls</h4>
-            <ul className="space-y-1">
-              <li>• Click Play/Pause to control video playback</li>
-              <li>• Use the timeline slider to seek</li>
-              <li>• Hover over detected objects for details</li>
-            </ul>
+      {/* User Guide */}
+      <div className="card">
+        <div className="card-header">
+          <div className="flex items-center gap-3">
+            <div className="w-6 h-6 bg-primary-600 rounded flex items-center justify-center">
+              <HiBookOpen className="text-white text-sm" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-neutral-900">
+                Quick Start Guide
+              </h3>
+              <p className="text-xs text-neutral-600">
+                Learn how to use the interface effectively
+              </p>
+            </div>
           </div>
-          <div>
-            <h4 className="font-medium mb-2">Map Controls</h4>
-            <ul className="space-y-1">
-              <li>• Toggle sync to link map with video</li>
-              <li>• Adjust zoom level in map controls</li>
-              <li>• Toggle flight path and FOV display</li>
-            </ul>
+        </div>
+        <div className="card-body">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="space-y-3">
+              <h4 className="font-medium text-neutral-900 flex items-center gap-2">
+                <span className="w-5 h-5 bg-primary-100 text-primary-600 rounded-full flex items-center justify-center text-xs font-bold">
+                  1
+                </span>
+                Video Controls
+              </h4>
+              <ul className="space-y-2 text-sm text-neutral-600">
+                <li className="flex items-start gap-2">
+                  <HiPlay className="text-primary-500 w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <span>Click Play/Pause to control video playback</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <HiLocationMarker className="text-primary-500 w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <span>
+                    Use the timeline slider to seek to specific moments
+                  </span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <MdGpsFixed className="text-primary-500 w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <span>Hover over detected objects for details</span>
+                </li>
+              </ul>
+            </div>
+            <div className="space-y-3">
+              <h4 className="font-medium text-neutral-900 flex items-center gap-2">
+                <span className="w-5 h-5 bg-secondary-100 text-secondary-600 rounded-full flex items-center justify-center text-xs font-bold">
+                  2
+                </span>
+                Map Controls
+              </h4>
+              <ul className="space-y-2 text-sm text-neutral-600">
+                <li className="flex items-start gap-2">
+                  <HiLink className="text-secondary-500 w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <span>Toggle sync to link map with video timeline</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <HiMap className="text-secondary-500 w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <span>Zoom and pan the map for better visibility</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <HiAdjustments className="text-secondary-500 w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <span>View camera footprints and flight paths</span>
+                </li>
+              </ul>
+            </div>
+            <div className="space-y-3">
+              <h4 className="font-medium text-neutral-900 flex items-center gap-2">
+                <span className="w-5 h-5 bg-success-100 text-success-600 rounded-full flex items-center justify-center text-xs font-bold">
+                  3
+                </span>
+                Analysis Features
+              </h4>
+              <ul className="space-y-2 text-sm text-neutral-600">
+                <li className="flex items-start gap-2">
+                  <HiChartBar className="text-success-500 w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <span>Monitor live telemetry data in real-time</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <HiAdjustments className="text-success-500 w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <span>Use manual frame control for precise analysis</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <MdAnalytics className="text-success-500 w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <span>View flight analytics and coverage metrics</span>
+                </li>
+              </ul>
+            </div>
           </div>
         </div>
       </div>

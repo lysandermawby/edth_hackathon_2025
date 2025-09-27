@@ -1,7 +1,20 @@
 import { useState, useEffect } from "react";
+import {
+  HiFolder,
+  HiRefresh,
+  HiChartBar,
+  HiLocationMarker,
+  HiServer,
+} from "react-icons/hi";
+import { RiLiveLine, RiDashboardFill, RiFileListLine } from "react-icons/ri";
 import VideoMapViewer from "./VideoMapViewer";
 import RealtimeVideoCanvas from "./RealtimeVideoCanvas";
-import type { Session, FrameDetections, DetectionData, SessionWithMetadata, EnhancedTelemetryData } from "./types";
+import type {
+  Session,
+  FrameDetections,
+  DetectionData,
+  SessionWithMetadata,
+} from "./types";
 
 const convertDetectionsToFrames = (
   detections: DetectionData[],
@@ -66,13 +79,16 @@ const convertDetectionsToFrames = (
 
 function App() {
   const [sessions, setSessions] = useState<Session[]>([]);
-  const [selectedSession, setSelectedSession] = useState<SessionWithMetadata | null>(null);
+  const [selectedSession, setSelectedSession] =
+    useState<SessionWithMetadata | null>(null);
   const [trackingData, setTrackingData] = useState<FrameDetections[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"recorded" | "realtime">("recorded");
   const [isGeneratingDetections, setIsGeneratingDetections] = useState(false);
-  const [generationMessage, setGenerationMessage] = useState<string | null>(null);
+  const [generationMessage, setGenerationMessage] = useState<string | null>(
+    null
+  );
   const [generationError, setGenerationError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -100,10 +116,11 @@ function App() {
       // Load both detections and metadata in parallel
       const [detectionsResponse, metadataResponse] = await Promise.all([
         fetch(`/api/sessions/${session.session_id}/detections`),
-        fetch(`/api/sessions/${session.session_id}/metadata`)
+        fetch(`/api/sessions/${session.session_id}/metadata`),
       ]);
 
-      if (!detectionsResponse.ok) throw new Error("Failed to fetch tracking data");
+      if (!detectionsResponse.ok)
+        throw new Error("Failed to fetch tracking data");
 
       const detections: DetectionData[] = await detectionsResponse.json();
       const frames = convertDetectionsToFrames(detections, session.fps);
@@ -112,10 +129,16 @@ function App() {
       // Load enhanced telemetry data if available
       let enhancedTelemetry = null;
       try {
-        const telemetryResponse = await fetch(`/api/sessions/${session.session_id}/telemetry`);
+        const telemetryResponse = await fetch(
+          `/api/sessions/${session.session_id}/telemetry`
+        );
         if (telemetryResponse.ok) {
           enhancedTelemetry = await telemetryResponse.json();
-          console.log(`Loaded enhanced telemetry with ${enhancedTelemetry.telemetry?.length || 0} points`);
+          console.log(
+            `Loaded enhanced telemetry with ${
+              enhancedTelemetry.telemetry?.length || 0
+            } points`
+          );
         }
       } catch (err) {
         console.warn("Enhanced telemetry not available:", err);
@@ -134,7 +157,7 @@ function App() {
       const sessionWithMetadata: SessionWithMetadata = {
         ...session,
         metadata: gpsMetadata,
-        enhanced_telemetry: enhancedTelemetry
+        enhanced_telemetry: enhancedTelemetry,
       };
 
       setSelectedSession(sessionWithMetadata);
@@ -189,7 +212,8 @@ function App() {
         setGenerationMessage("Detections regenerated successfully.");
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to regenerate detections";
+      const message =
+        err instanceof Error ? err.message : "Failed to regenerate detections";
       setGenerationError(message);
       console.error(err);
     } finally {
@@ -212,170 +236,346 @@ function App() {
   ).length;
 
   return (
-    <div className="bg-gradient-to-br from-primary-500 to-secondary-500 min-h-screen">
-      <div className="max-w-7xl mx-auto p-6">
-        <header className="text-center mb-8 text-white">
-          <h1 className="text-4xl font-bold mb-3 drop-shadow-lg">
-            EDTH Object Tracker
-          </h1>
-          <p className="text-lg opacity-90">
-            Real-time object tracking with video visualization
-          </p>
-
-          {/* Mode Selector */}
-          <div className="mt-6 flex justify-center">
-            <div className="bg-white/20 rounded-lg p-1 backdrop-blur-sm">
-              <button
-                onClick={() => setViewMode("recorded")}
-                className={`px-6 py-2 rounded-md transition-all ${
-                  viewMode === "recorded"
-                    ? "bg-white text-primary-600 shadow-md"
-                    : "text-white hover:bg-white/10"
-                }`}
-              >
-                📁 Recorded Sessions
-              </button>
-              <button
-                onClick={() => setViewMode("realtime")}
-                className={`px-6 py-2 rounded-md transition-all ${
-                  viewMode === "realtime"
-                    ? "bg-white text-primary-600 shadow-md"
-                    : "text-white hover:bg-white/10"
-                }`}
-              >
-                🔴 Live Detection
-              </button>
-            </div>
-          </div>
-        </header>
-
-        {viewMode === "realtime" ? (
-          /* Real-time Detection Mode */
-          <div className="bg-white rounded-xl p-6 shadow-xl">
-            <h2 className="text-xl font-semibold text-gray-700 mb-6">
-              🔴 Live Object Detection & Tracking
-            </h2>
-            <RealtimeVideoCanvas
-              onDetectionData={(data) => {
-                console.log("Real-time detection data:", data);
-              }}
-            />
-          </div>
-        ) : (
-          /* Recorded Sessions Mode */
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Session Selection */}
-            <div className="lg:col-span-1">
-              <div className="bg-white rounded-xl p-6 shadow-xl">
-                <h2 className="text-xl font-semibold text-gray-700 mb-4">
-                  📁 Tracking Sessions
-                </h2>
-
-                {error && (
-                  <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
-                    {error}
-                  </div>
-                )}
-
-                <div className="space-y-3">
-                  {sessions.map((session) => (
-                    <div
-                      key={session.session_id}
-                      className={`p-3 rounded-lg border cursor-pointer transition-all ${
-                        selectedSession?.session_id === session.session_id
-                          ? "border-primary-500 bg-primary-50"
-                          : "border-gray-200 hover:border-primary-300 hover:bg-gray-50"
-                      }`}
-                      onClick={() => loadSessionData(session)}
-                    >
-                      <div className="font-medium text-sm text-gray-900">
-                        Session #{session.session_id}
-                      </div>
-                      <div className="text-xs text-gray-600 mt-1">
-                        {session.video_path.split("/").pop()}
-                      </div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        {session.total_frames
-                          ? `${session.total_frames} frames`
-                          : "In progress"}
-                        {session.fps && ` • ${session.fps} FPS`}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {new Date(session.start_time).toLocaleString()}
-                      </div>
-                    </div>
-                  ))}
-
-                  {sessions.length === 0 && !error && (
-                    <div className="text-gray-500 text-center py-4">
-                      No tracking sessions found
-                    </div>
-                  )}
+    <div className="min-h-screen bg-tactical-bg">
+      {/* Header Navigation */}
+      <header className="tactical-panel border-b border-tactical-border shadow-tactical">
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-gradient-to-br from-primary-600 via-primary-500 to-tactical-glow rounded-xl flex items-center justify-center shadow-glow">
+                  <HiLocationMarker className="text-white text-2xl" />
                 </div>
-
-                <button
-                  onClick={fetchSessions}
-                  className="mt-4 w-full bg-primary-500 text-white px-4 py-2 rounded-lg hover:bg-primary-600 transition-colors"
-                >
-                  Refresh Sessions
-                </button>
+                <div>
+                  <h1 className="text-2xl font-bold text-tactical-text">
+                    EDTH OBJECT TRACKER
+                  </h1>
+                  <p className="text-sm text-tactical-muted font-mono uppercase tracking-wider">
+                    TACTICAL SURVEILLANCE SYSTEM v2.1
+                  </p>
+                </div>
               </div>
             </div>
 
-            {/* Video and Map Viewer */}
-            <div className="lg:col-span-2">
+            {/* Status Indicators */}
+            <div className="flex items-center gap-6">
+              <div className="hidden lg:flex items-center gap-3 text-sm">
+                <div className="flex items-center gap-2 px-3 py-1 bg-success-900/30 border border-success-600/50 rounded-full">
+                  <div className="w-2 h-2 bg-success-400 rounded-full animate-pulse shadow-glow"></div>
+                  <span className="text-success-300 font-mono uppercase tracking-wide">
+                    SYS ONLINE
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 px-3 py-1 bg-primary-900/30 border border-primary-600/50 rounded-full">
+                  <HiServer className="w-3 h-3 text-primary-400" />
+                  <span className="text-primary-300 font-mono uppercase tracking-wide">
+                    SECURE
+                  </span>
+                </div>
+              </div>
+
+              {/* Mode Selector */}
+              <div className="bg-tactical-surface/50 rounded-xl p-1 border border-tactical-border shadow-inner-glow">
+                <button
+                  onClick={() => setViewMode("recorded")}
+                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 uppercase tracking-wide ${
+                    viewMode === "recorded"
+                      ? "bg-primary-600 text-white shadow-glow border border-primary-500/50"
+                      : "text-tactical-muted hover:bg-tactical-surface hover:text-tactical-text"
+                  }`}
+                >
+                  <HiFolder className="w-4 h-4" />
+                  <span className="hidden sm:inline">Archive</span>
+                </button>
+                <button
+                  onClick={() => setViewMode("realtime")}
+                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 uppercase tracking-wide ${
+                    viewMode === "realtime"
+                      ? "bg-accent-600 text-white shadow-glow border border-accent-500/50"
+                      : "text-tactical-muted hover:bg-tactical-surface hover:text-tactical-text"
+                  }`}
+                >
+                  <RiLiveLine className="w-4 h-4" />
+                  <span className="hidden sm:inline">Live</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto p-6">
+        {viewMode === "realtime" ? (
+          /* Real-time Detection Mode */
+          <div className="space-y-6 animate-fade-in">
+            {/* Realtime Header */}
+            <div className="card">
+              <div className="card-header">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 bg-gradient-to-br from-accent-600 to-accent-700 rounded-lg flex items-center justify-center shadow-glow">
+                      <RiLiveLine className="text-white text-xl" />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold text-tactical-text uppercase tracking-wide">
+                        LIVE TACTICAL SURVEILLANCE
+                      </h2>
+                      <p className="text-sm text-tactical-muted font-mono uppercase tracking-wider">
+                        REAL-TIME AI DETECTION & TRACKING SYSTEM
+                      </p>
+                    </div>
+                  </div>
+                  <div className="status-connected">
+                    <div className="w-2 h-2 bg-success-400 rounded-full animate-pulse"></div>
+                    OPERATIONAL
+                  </div>
+                </div>
+              </div>
+              <div className="card-body">
+                <RealtimeVideoCanvas
+                  onDetectionData={(data) => {
+                    console.log("Real-time detection data:", data);
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* Recorded Sessions Mode */
+          <div className="grid grid-cols-1 xl:grid-cols-4 gap-6 animate-fade-in">
+            {/* Session Selection Sidebar */}
+            <div className="xl:col-span-1">
+              <div className="card sticky top-6">
+                <div className="card-header">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-gradient-to-br from-primary-600 to-primary-700 rounded-lg flex items-center justify-center shadow-glow">
+                      <RiFileListLine className="text-white text-lg" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-bold text-tactical-text uppercase tracking-wide">
+                        MISSION ARCHIVE
+                      </h2>
+                      <p className="text-xs text-tactical-muted font-mono uppercase tracking-wider">
+                        {sessions.length} SESSIONS AVAILABLE
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-4">
+                  {error && (
+                    <div className="mb-4 p-3 bg-accent-900/50 border border-accent-600/50 text-accent-300 rounded-lg text-sm shadow-inner-glow">
+                      <div className="font-semibold uppercase tracking-wide">
+                        SYSTEM ERROR
+                      </div>
+                      <div className="text-xs mt-1 font-mono">{error}</div>
+                    </div>
+                  )}
+
+                  <div className="space-y-2 max-h-96 overflow-y-auto">
+                    {sessions.map((session) => (
+                      <div
+                        key={session.session_id}
+                        className={`p-3 rounded-xl border cursor-pointer transition-all duration-300 ${
+                          selectedSession?.session_id === session.session_id
+                            ? "border-primary-500/50 bg-primary-900/30 shadow-glow"
+                            : "border-tactical-border hover:border-primary-600/30 hover:bg-tactical-surface/50 hover:shadow-inner-glow"
+                        }`}
+                        onClick={() => loadSessionData(session)}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 min-w-0">
+                            <div className="font-semibold text-sm text-tactical-text truncate uppercase tracking-wide">
+                              MISSION #{session.session_id}
+                            </div>
+                            <div className="text-xs text-tactical-muted mt-1 truncate font-mono">
+                              {session.video_path.split("/").pop()}
+                            </div>
+                          </div>
+                          {selectedSession?.session_id ===
+                            session.session_id && (
+                            <div className="w-2 h-2 bg-primary-400 rounded-full flex-shrink-0 shadow-glow"></div>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className="px-2 py-1 bg-tactical-surface/50 text-tactical-text rounded text-xs font-mono border border-tactical-border">
+                            {session.total_frames
+                              ? `${session.total_frames} FRAMES`
+                              : "PROCESSING"}
+                          </span>
+                          {session.fps && (
+                            <span className="px-2 py-1 bg-primary-900/50 text-primary-300 rounded text-xs font-mono border border-primary-600/50">
+                              {session.fps} FPS
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="text-xs text-tactical-muted mt-2 font-mono">
+                          {new Date(session.start_time).toLocaleDateString()}{" "}
+                          {new Date(session.start_time).toLocaleTimeString()}
+                        </div>
+                      </div>
+                    ))}
+
+                    {sessions.length === 0 && !error && (
+                      <div className="text-center py-8">
+                        <HiFolder className="text-neutral-400 text-2xl mb-2 mx-auto" />
+                        <div className="text-neutral-500 text-sm">
+                          No sessions found
+                        </div>
+                        <div className="text-neutral-400 text-xs mt-1">
+                          Start recording to see sessions here
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-4 pt-4 border-t border-neutral-200">
+                    <button
+                      onClick={fetchSessions}
+                      className="btn-secondary w-full text-sm"
+                    >
+                      <HiRefresh className="w-4 h-4" />
+                      Refresh
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Main Content Area */}
+            <div className="xl:col-span-3">
               {loading && (
-                <div className="bg-white rounded-xl p-6 shadow-xl">
-                  <div className="flex items-center justify-center py-12">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
-                    <span className="ml-3 text-gray-600">
-                      Loading tracking data...
-                    </span>
+                <div className="card">
+                  <div className="card-body">
+                    <div className="flex items-center justify-center py-12">
+                      <div className="flex flex-col items-center gap-4">
+                        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600"></div>
+                        <div className="text-center">
+                          <div className="font-medium text-neutral-900">
+                            Loading Session Data
+                          </div>
+                          <div className="text-sm text-neutral-600 mt-1">
+                            Processing tracking data and metadata...
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
 
               {selectedSession && !loading && (
-                <div className="space-y-4">
-                  <div className="bg-white rounded-xl p-5 shadow-xl flex flex-wrap items-start justify-between gap-4">
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-700">
-                        Detection Summary
-                      </h3>
-                      {trackingData.length > 0 ? (
-                        <p className="text-sm text-gray-600">
-                          {framesWithDetections} frames with detections • {totalDetections} objects tracked
-                        </p>
-                      ) : (
-                        <p className="text-sm text-gray-600">
-                          No detections stored for this session yet.
-                        </p>
-                      )}
-                      {generationMessage && (
-                        <p className="text-sm text-green-600 mt-2">
-                          {generationMessage}
-                        </p>
-                      )}
-                      {generationError && (
-                        <p className="text-sm text-red-600 mt-2">
-                          {generationError}
-                        </p>
-                      )}
+                <div className="space-y-6">
+                  {/* Session Summary Dashboard */}
+                  <div className="card">
+                    <div className="card-header">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
+                            <RiDashboardFill className="text-white text-lg" />
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-semibold text-neutral-900">
+                              Session #{selectedSession.session_id}
+                            </h3>
+                            <p className="text-sm text-neutral-600">
+                              {selectedSession.video_path.split("/").pop()}
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={regenerateDetections}
+                          disabled={isGeneratingDetections}
+                          className={`btn ${
+                            isGeneratingDetections
+                              ? "btn-secondary cursor-not-allowed"
+                              : "btn-primary"
+                          }`}
+                        >
+                          {isGeneratingDetections ? (
+                            <>
+                              <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>
+                              Generating...
+                            </>
+                          ) : (
+                            <>
+                              <HiRefresh className="w-4 h-4" />
+                              Regenerate
+                            </>
+                          )}
+                        </button>
+                      </div>
                     </div>
 
-                    <button
-                      onClick={regenerateDetections}
-                      disabled={isGeneratingDetections}
-                      className={`inline-flex items-center px-4 py-2 rounded-lg shadow-md transition-colors ${
-                        isGeneratingDetections
-                          ? "bg-gray-200 text-gray-500 cursor-not-allowed"
-                          : "bg-primary-500 text-white hover:bg-primary-600"
-                      }`}
-                    >
-                      {isGeneratingDetections ? "Generating…" : "Regenerate detections"}
-                    </button>
+                    <div className="card-body">
+                      {/* Status Messages */}
+                      {generationMessage && (
+                        <div className="mb-4 p-3 bg-success-50 border border-success-200 text-success-800 rounded-lg text-sm">
+                          <div className="font-medium">Success</div>
+                          <div className="text-xs mt-1">
+                            {generationMessage}
+                          </div>
+                        </div>
+                      )}
+                      {generationError && (
+                        <div className="mb-4 p-3 bg-accent-50 border border-accent-200 text-accent-800 rounded-lg text-sm">
+                          <div className="font-medium">Error</div>
+                          <div className="text-xs mt-1">{generationError}</div>
+                        </div>
+                      )}
+
+                      {/* Metrics Grid */}
+                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="metric-display">
+                          <div className="text-2xl font-bold text-primary-600">
+                            {trackingData.length}
+                          </div>
+                          <div className="text-sm text-neutral-600">
+                            Total Frames
+                          </div>
+                        </div>
+                        <div className="metric-display">
+                          <div className="text-2xl font-bold text-success-600">
+                            {framesWithDetections}
+                          </div>
+                          <div className="text-sm text-neutral-600">
+                            With Detections
+                          </div>
+                        </div>
+                        <div className="metric-display">
+                          <div className="text-2xl font-bold text-secondary-600">
+                            {totalDetections}
+                          </div>
+                          <div className="text-sm text-neutral-600">
+                            Objects Tracked
+                          </div>
+                        </div>
+                        <div className="metric-display">
+                          <div className="text-2xl font-bold text-warning-600">
+                            {selectedSession.fps || "N/A"}
+                          </div>
+                          <div className="text-sm text-neutral-600">FPS</div>
+                        </div>
+                      </div>
+
+                      {trackingData.length === 0 && (
+                        <div className="text-center py-8 text-neutral-500">
+                          <HiChartBar className="text-neutral-400 text-4xl mb-2 mx-auto" />
+                          <div className="font-medium">
+                            No detection data available
+                          </div>
+                          <div className="text-sm mt-1">
+                            Click "Regenerate" to process this session
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
+                  {/* Video and Map Viewer */}
                   <VideoMapViewer
                     session={selectedSession}
                     trackingData={trackingData}
@@ -385,16 +585,26 @@ function App() {
               )}
 
               {!selectedSession && !loading && (
-                <div className="bg-white rounded-xl p-6 shadow-xl">
-                  <h2 className="text-xl font-semibold text-gray-700 mb-4">
-                    Video Player with Detections & Map
-                  </h2>
-                  <div className="text-center py-12 text-gray-500">
-                    <div className="text-4xl mb-4">🗺️📹</div>
-                    <p>
-                      Select a tracking session to view the video with
-                      detections and synchronized map
-                    </p>
+                <div className="card">
+                  <div className="card-body">
+                    <div className="text-center py-16">
+                      <div className="w-16 h-16 bg-gradient-to-br from-primary-100 to-secondary-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                        <HiLocationMarker className="text-primary-600 text-2xl" />
+                      </div>
+                      <h3 className="text-xl font-semibold text-neutral-900 mb-2">
+                        Select a Session
+                      </h3>
+                      <p className="text-neutral-600 max-w-md mx-auto">
+                        Choose a tracking session from the sidebar to view the
+                        video with object detections and synchronized drone
+                        telemetry
+                      </p>
+                      <div className="mt-6 text-sm text-neutral-500 flex items-center justify-center gap-2">
+                        <HiServer className="w-4 h-4" />
+                        Sessions with GPS data will show flight paths and camera
+                        footprints
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}

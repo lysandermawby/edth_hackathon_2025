@@ -9,12 +9,14 @@
     "server": "node server.js"
   },
   "dependencies": {
+    "@heroicons/react": "^2.2.0",
     "@types/leaflet": "^1.9.20",
     "cors": "^2.8.5",
     "express": "^4.21.2",
     "leaflet": "^1.9.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-icons": "^5.5.0",
     "react-leaflet": "^4.2.1",
     "sqlite3": "^5.1.7"
   },

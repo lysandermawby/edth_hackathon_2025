@@ -1,3 +1,6 @@
+/* Google Fonts import */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&family=JetBrains+Mono:wght@100;200;300;400;500;600;700;800&display=swap');
+
 /* Leaflet CSS import */
 @import 'leaflet/dist/leaflet.css';
 
@@ -5,12 +8,241 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  * {
+    @apply border-tactical-border;
+  }
+  
+  html {
+    @apply scroll-smooth;
+  }
+  
+  body {
+    @apply font-sans text-tactical-text antialiased;
+    @apply bg-tactical-bg;
+    background-image: 
+      radial-gradient(circle at 25% 25%, rgba(0, 212, 255, 0.03) 0%, transparent 50%),
+      radial-gradient(circle at 75% 75%, rgba(14, 165, 233, 0.03) 0%, transparent 50%);
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-bold tracking-tight text-tactical-text;
+    text-shadow: 0 0 10px rgba(0, 212, 255, 0.3);
+  }
+
+  h1 { @apply text-4xl lg:text-5xl; }
+  h2 { @apply text-3xl lg:text-4xl; }
+  h3 { @apply text-2xl lg:text-3xl; }
+  h4 { @apply text-xl lg:text-2xl; }
+  h5 { @apply text-lg lg:text-xl; }
+  h6 { @apply text-base lg:text-lg; }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold transition-all duration-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-tactical-bg disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply border border-tactical-border shadow-inner-glow;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .btn-primary {
+    @apply btn bg-gradient-to-r from-primary-600 to-primary-700 text-white hover:from-primary-500 hover:to-primary-600 focus:ring-primary-500;
+    @apply shadow-glow hover:shadow-glow-strong;
+    border: 1px solid rgba(14, 165, 233, 0.3);
+  }
+
+  .btn-secondary {
+    @apply btn bg-tactical-surface text-tactical-text hover:bg-secondary-800 focus:ring-secondary-500;
+    @apply border-tactical-border hover:border-secondary-600;
+  }
+
+  .btn-accent {
+    @apply btn bg-gradient-to-r from-accent-600 to-accent-700 text-white hover:from-accent-500 hover:to-accent-600 focus:ring-accent-500;
+    @apply shadow-medium hover:shadow-large;
+  }
+
+  .btn-success {
+    @apply btn bg-gradient-to-r from-success-600 to-success-700 text-white hover:from-success-500 hover:to-success-600 focus:ring-success-500;
+    @apply shadow-medium hover:shadow-large;
+  }
+
+  .btn-warning {
+    @apply btn bg-gradient-to-r from-warning-600 to-warning-700 text-white hover:from-warning-500 hover:to-warning-600 focus:ring-warning-500;
+    @apply shadow-medium hover:shadow-large;
+  }
+
+  .card {
+    @apply bg-tactical-surface rounded-2xl shadow-tactical border border-tactical-border overflow-hidden;
+    @apply backdrop-blur-sm;
+    background: linear-gradient(145deg, rgba(26, 31, 46, 0.9), rgba(26, 31, 46, 0.7));
+  }
+
+  .card-header {
+    @apply px-6 py-4 border-b border-tactical-border;
+    background: linear-gradient(90deg, rgba(14, 165, 233, 0.1), rgba(0, 212, 255, 0.05));
+  }
+
+  .card-body {
+    @apply p-6;
+  }
+
+  .card-footer {
+    @apply px-6 py-4 border-t border-tactical-border bg-tactical-surface/50;
+  }
+
+  .stats-card {
+    @apply card text-center p-6 hover:shadow-glow transition-all duration-500;
+    @apply hover:scale-105 hover:border-primary-500/50;
+  }
+
+  .status-indicator {
+    @apply inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-semibold;
+    @apply border border-tactical-border shadow-inner-glow;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .status-connected {
+    @apply status-indicator bg-success-900/50 text-success-300 border-success-600/50;
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
+  }
+
+  .status-disconnected {
+    @apply status-indicator bg-accent-900/50 text-accent-300 border-accent-600/50;
+    box-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
+  }
+
+  .status-loading {
+    @apply status-indicator bg-warning-900/50 text-warning-300 border-warning-600/50;
+    box-shadow: 0 0 10px rgba(245, 158, 11, 0.3);
+  }
+
+  .sidebar {
+    @apply bg-tactical-surface border-r border-tactical-border overflow-y-auto;
+  }
+
+  .main-content {
+    @apply flex-1 overflow-hidden;
+  }
+
+  .metric-display {
+    @apply bg-gradient-to-br from-tactical-surface to-secondary-900/50 rounded-xl p-4 border border-tactical-border;
+    @apply shadow-inner-glow hover:shadow-glow transition-all duration-300;
+  }
+
+  .tactical-panel {
+    @apply bg-gradient-to-br from-tactical-surface via-secondary-900/30 to-tactical-surface;
+    @apply border border-tactical-border rounded-xl shadow-tactical;
+    @apply backdrop-blur-md;
+  }
+
+  .tactical-input {
+    @apply bg-tactical-surface border border-tactical-border rounded-lg px-3 py-2;
+    @apply text-tactical-text placeholder-tactical-muted;
+    @apply focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20;
+    @apply transition-all duration-300;
+  }
+
+  .tactical-input:focus {
+    @apply shadow-glow;
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    @apply bg-gradient-to-r from-primary-600 to-secondary-600 bg-clip-text text-transparent;
+  }
+
+  .bg-pattern {
+    background-image: 
+      radial-gradient(circle at 25px 25px, rgba(59, 130, 246, 0.1) 2px, transparent 0),
+      radial-gradient(circle at 75px 75px, rgba(139, 92, 246, 0.1) 2px, transparent 0);
+    background-size: 100px 100px;
+  }
+
+  .glassmorphism {
+    @apply bg-white/80 backdrop-blur-md border border-white/20;
+  }
+
+  .shadow-glow {
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.5s ease-in-out;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.4s ease-out;
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 0.3s ease-out;
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { 
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to { 
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scaleIn {
+  from { 
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to { 
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 /* Custom map styling */
 .leaflet-container {
-  background-color: #f3f4f6;
+  @apply bg-neutral-100 rounded-xl;
 }
 
 .drone-marker {
   background: transparent !important;
   border: none !important;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-neutral-100;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-neutral-300 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-neutral-400;
+}
+
+/* Selection styling */
+::selection {
+  @apply bg-primary-200 text-primary-900;
+}
+
+/* Focus visible styling */
+.focus-visible {
+  @apply outline-none ring-2 ring-primary-500 ring-offset-2;
 }
