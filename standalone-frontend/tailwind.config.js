@@ -4,135 +4,171 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Military-grade dark theme palette
+        // Cyberpunk color palette - pure neon on black
+        cyber: {
+          black: "#000000",
+          dark: "#0a0a0a", 
+          bg: "#111111",
+          surface: "#1a1a1a",
+          border: "#333333",
+          text: "#ffffff",
+          muted: "#999999",
+          disabled: "#555555",
+        },
+        neon: {
+          cyan: "#00ffff",
+          pink: "#ff0080", 
+          green: "#00ff41",
+          yellow: "#ffff00",
+          purple: "#8000ff",
+          blue: "#0080ff",
+          red: "#ff4040",
+          orange: "#ff8000",
+        },
+        // Legacy colors mapped to neon equivalents for compatibility
         primary: {
-          50: "#f0f9ff",
-          100: "#e0f2fe", 
-          200: "#bae6fd",
-          300: "#7dd3fc",
-          400: "#38bdf8",
-          500: "#0ea5e9", // Tactical blue
-          600: "#0284c7",
-          700: "#0369a1",
-          800: "#075985",
-          900: "#0c4a6e",
-          950: "#082f49",
+          50: "#e6ffff",
+          100: "#ccffff",
+          200: "#99ffff",
+          300: "#66ffff", 
+          400: "#33ffff",
+          500: "#00ffff", // Neon cyan
+          600: "#00cccc", 
+          700: "#009999",
+          800: "#006666",
+          900: "#003333",
         },
         secondary: {
-          50: "#f8fafc",
-          100: "#f1f5f9",
-          200: "#e2e8f0",
-          300: "#cbd5e1",
-          400: "#94a3b8",
-          500: "#64748b", // Steel gray
-          600: "#475569",
-          700: "#334155",
-          800: "#1e293b",
-          900: "#0f172a",
-          950: "#020617",
+          50: "#ffe6f5",
+          100: "#ffcceb",
+          200: "#ff99d6",
+          300: "#ff66c2",
+          400: "#ff33ad",
+          500: "#ff0080", // Neon pink
+          600: "#cc0066",
+          700: "#99004d",
+          800: "#660033",
+          900: "#33001a",
         },
         accent: {
-          50: "#fef2f2",
-          100: "#fee2e2",
-          200: "#fecaca",
-          300: "#fca5a5",
-          400: "#f87171",
-          500: "#ef4444", // Tactical red
-          600: "#dc2626",
-          700: "#b91c1c",
-          800: "#991b1b",
-          900: "#7f1d1d",
-          950: "#450a0a",
+          50: "#e6fff2",
+          100: "#ccffe6",
+          200: "#99ffcc",
+          300: "#66ffb3",
+          400: "#33ff99",
+          500: "#00ff41", // Neon green
+          600: "#00cc34",
+          700: "#009928",
+          800: "#00661b",
+          900: "#00330d",
         },
         success: {
-          50: "#ecfdf5",
-          100: "#d1fae5",
-          200: "#a7f3d0",
-          300: "#6ee7b7",
-          400: "#34d399",
-          500: "#10b981", // Military green
-          600: "#059669",
-          700: "#047857",
-          800: "#065f46",
-          900: "#064e3b",
-          950: "#022c22",
+          400: "#00ff41",
+          500: "#00cc34",
+          600: "#009928",
         },
         warning: {
-          50: "#fffbeb",
-          100: "#fef3c7",
-          200: "#fde68a",
-          300: "#fcd34d",
-          400: "#fbbf24",
-          500: "#f59e0b", // Tactical amber
-          600: "#d97706",
-          700: "#b45309",
-          800: "#92400e",
-          900: "#78350f",
-          950: "#451a03",
+          400: "#ffff00",
+          500: "#cccc00",
+          600: "#999900",
         },
-        // Dark theme base colors
-        dark: {
-          50: "#18181b",
-          100: "#27272a",
-          200: "#3f3f46",
-          300: "#52525b",
-          400: "#71717a",
-          500: "#a1a1aa",
-          600: "#d4d4d8",
-          700: "#e4e4e7",
-          800: "#f4f4f5",
-          900: "#fafafa",
-          950: "#ffffff",
-        },
-        // Tactical colors
+        // Tactical colors mapped to cyberpunk
         tactical: {
-          bg: "#0a0f1c", // Deep navy background
-          surface: "#1a1f2e", // Card/surface color
-          border: "#2a2f3e", // Border color
-          text: "#f1f5f9", // Brighter main text for better readability
-          muted: "#cbd5e1", // Lighter muted text for better contrast
-          glow: "#00d4ff", // Cyan glow for highlights
+          bg: "#000000",
+          surface: "#111111",
+          border: "#333333",
+          text: "#ffffff",
+          muted: "#999999",
+          glow: "#00ffff",
         },
       },
       fontFamily: {
-        'sans': ['Inter', 'system-ui', 'sans-serif'],
-        'mono': ['JetBrains Mono', 'Fira Code', 'monospace'],
+        mono: ['JetBrains Mono', 'Courier New', 'monospace'],
+        sans: ['JetBrains Mono', 'Courier New', 'monospace'], // Everything monospace for cyberpunk feel
       },
       fontSize: {
-        'xs': ['0.75rem', { lineHeight: '1rem' }],
-        'sm': ['0.875rem', { lineHeight: '1.25rem' }],
-        'base': ['1rem', { lineHeight: '1.5rem' }],
-        'lg': ['1.125rem', { lineHeight: '1.75rem' }],
-        'xl': ['1.25rem', { lineHeight: '1.75rem' }],
-        '2xl': ['1.5rem', { lineHeight: '2rem' }],
-        '3xl': ['1.875rem', { lineHeight: '2.25rem' }],
-        '4xl': ['2.25rem', { lineHeight: '2.5rem' }],
-        '5xl': ['3rem', { lineHeight: '1' }],
-        '6xl': ['3.75rem', { lineHeight: '1' }],
-      },
-      spacing: {
-        '18': '4.5rem',
-        '88': '22rem',
-        '128': '32rem',
+        'xs': ['0.75rem', { lineHeight: '1.2rem', letterSpacing: '0.05em' }],
+        'sm': ['0.875rem', { lineHeight: '1.4rem', letterSpacing: '0.05em' }],
+        'base': ['1rem', { lineHeight: '1.6rem', letterSpacing: '0.025em' }],
+        'lg': ['1.125rem', { lineHeight: '1.8rem', letterSpacing: '0.025em' }],
+        'xl': ['1.25rem', { lineHeight: '2rem', letterSpacing: '0.025em' }],
+        '2xl': ['1.5rem', { lineHeight: '2.4rem', letterSpacing: '0.025em' }],
+        '3xl': ['1.875rem', { lineHeight: '2.8rem', letterSpacing: '0.025em' }],
+        '4xl': ['2.25rem', { lineHeight: '3.2rem', letterSpacing: '0.025em' }],
       },
       borderRadius: {
-        'xl': '0.75rem',
-        '2xl': '1rem',
-        '3xl': '1.5rem',
+        'none': '0px', // No rounded corners - everything square/rectangular
+        'xs': '0px',
+        'sm': '0px', 
+        'DEFAULT': '0px',
+        'md': '0px',
+        'lg': '0px',
+        'xl': '0px',
+        '2xl': '0px',
+        '3xl': '0px',
+        'full': '0px',
       },
       boxShadow: {
-        'soft': '0 2px 15px -3px rgba(0, 0, 0, 0.3), 0 10px 20px -2px rgba(0, 0, 0, 0.2)',
-        'medium': '0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3)',
-        'large': '0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.3)',
-        'xl-soft': '0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 10px 10px -5px rgba(0, 0, 0, 0.3)',
-        'tactical': '0 8px 32px rgba(0, 0, 0, 0.6), 0 4px 16px rgba(0, 0, 0, 0.4)',
-        'glow': '0 0 20px rgba(0, 212, 255, 0.3), 0 0 40px rgba(0, 212, 255, 0.1)',
-        'glow-strong': '0 0 30px rgba(0, 212, 255, 0.5), 0 0 60px rgba(0, 212, 255, 0.2)',
-        'inner-glow': 'inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+        // Neon glow effects
+        neon: "0 0 5px currentColor, 0 0 10px currentColor",
+        "neon-sm": "0 0 2px currentColor, 0 0 4px currentColor",
+        "neon-lg": "0 0 10px currentColor, 0 0 20px currentColor, 0 0 30px currentColor",
+        "neon-xl": "0 0 15px currentColor, 0 0 30px currentColor, 0 0 45px currentColor",
+        // Cyberpunk specific
+        cyber: "0 0 10px #00ffff, 0 0 20px #00ffff, 0 0 30px #00ffff",
+        "cyber-pink": "0 0 10px #ff0080, 0 0 20px #ff0080, 0 0 30px #ff0080",
+        "cyber-green": "0 0 10px #00ff41, 0 0 20px #00ff41, 0 0 30px #00ff41",
+        // Subtle inner shadows for depth
+        inner: "inset 0 2px 4px rgba(0, 0, 0, 0.9)",
+        "inner-glow": "inset 0 0 10px rgba(0, 255, 255, 0.1)",
+      },
+      animation: {
+        'pulse-neon': 'pulse-neon 2s ease-in-out infinite',
+        'flicker': 'flicker 3s linear infinite',
+        'scan': 'scan 2s linear infinite',
+        'glow': 'glow 2s ease-in-out infinite alternate',
+      },
+      keyframes: {
+        'pulse-neon': {
+          '0%, 100%': { 
+            textShadow: '0 0 5px currentColor, 0 0 10px currentColor, 0 0 15px currentColor',
+            filter: 'brightness(1)'
+          },
+          '50%': { 
+            textShadow: '0 0 2px currentColor, 0 0 5px currentColor, 0 0 8px currentColor',
+            filter: 'brightness(0.8)'
+          },
+        },
+        flicker: {
+          '0%, 19%, 21%, 23%, 25%, 54%, 56%, 100%': { 
+            opacity: '1',
+            filter: 'brightness(1)',
+          },
+          '20%, 24%, 55%': { 
+            opacity: '0.7',
+            filter: 'brightness(0.7)',
+          },
+        },
+        scan: {
+          '0%': { transform: 'translateX(-100%)', opacity: '0' },
+          '50%': { opacity: '1' },
+          '100%': { transform: 'translateX(100%)', opacity: '0' },
+        },
+        glow: {
+          '0%': { 
+            textShadow: '0 0 5px currentColor, 0 0 10px currentColor, 0 0 15px currentColor',
+          },
+          '100%': { 
+            textShadow: '0 0 10px currentColor, 0 0 20px currentColor, 0 0 30px currentColor',
+          },
+        },
       },
       backgroundImage: {
-        'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
-        'grid-pattern': 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'40\' height=\'40\' viewBox=\'0 0 40 40\'%3E%3Cg fill-rule=\'evenodd\'%3E%3Cg fill=\'%23f3f4f6\' fill-opacity=\'0.4\'%3E%3Cpath d=\'M0 40L40 0H20L0 20M40 40V20L20 40\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")',
+        'scan-lines': 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0, 255, 255, 0.03) 2px, rgba(0, 255, 255, 0.03) 4px)',
+        'grid-cyber': 'linear-gradient(rgba(0, 255, 255, 0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 255, 255, 0.1) 1px, transparent 1px)',
+      },
+      backgroundSize: {
+        'grid': '20px 20px',
       },
     },
   },

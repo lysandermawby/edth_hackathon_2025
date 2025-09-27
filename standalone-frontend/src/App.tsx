@@ -236,22 +236,23 @@ function App() {
   ).length;
 
   return (
-    <div className="min-h-screen bg-tactical-bg">
+    <div className="min-h-screen bg-cyber-black">
       {/* Header Navigation */}
-      <header className="tactical-panel border-b border-tactical-border shadow-tactical">
-        <div className="w-full px-4 py-4">
+      <header className="cyber-panel border-b border-cyber-border">
+        <div className="w-full px-6 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-6">
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-gradient-to-br from-primary-600 via-primary-500 to-tactical-glow rounded-xl flex items-center justify-center shadow-glow">
-                  <HiLocationMarker className="text-white text-2xl" />
+                <div className="w-12 h-12 bg-cyber-surface border-2 border-neon-cyan flex items-center justify-center shadow-cyber relative">
+                  <HiLocationMarker className="text-neon-cyan text-2xl text-glow" />
+                  <div className="absolute inset-0 border border-neon-cyan animate-pulse-neon opacity-50"></div>
                 </div>
                 <div>
-                  <h1 className="text-2xl font-bold text-tactical-text">
-                    EDTH Object Tracker
+                  <h1 className="text-2xl font-bold text-neon-cyan text-glow">
+                    > EDTH_TRACKER.EXE
                   </h1>
-                  <p className="text-sm text-tactical-muted">
-                    Advanced object detection and tracking
+                  <p className="text-sm text-cyber-muted font-mono">
+                    [NEURAL_DETECTION_SYSTEM_v2.1_ONLINE]
                   </p>
                 </div>
               </div>
@@ -259,28 +260,28 @@ function App() {
 
             {/* Mode Selector */}
             <div className="flex items-center gap-6">
-              <div className="bg-tactical-surface/50 rounded-xl p-1 border border-tactical-border shadow-inner-glow">
+              <div className="bg-cyber-surface border border-cyber-border p-1 flex">
                 <button
                   onClick={() => setViewMode("recorded")}
-                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 ${
+                  className={`px-6 py-3 text-sm font-bold transition-all flex items-center gap-3 font-mono uppercase tracking-wider ${
                     viewMode === "recorded"
-                      ? "bg-primary-600 text-white shadow-glow border border-primary-500/50"
-                      : "text-tactical-muted hover:bg-tactical-surface hover:text-tactical-text"
+                      ? "bg-neon-cyan text-cyber-black shadow-cyber border-glow"
+                      : "text-neon-cyan hover:bg-cyber-border hover:text-neon-cyan border border-transparent hover:border-neon-cyan"
                   }`}
                 >
                   <HiFolder className="w-4 h-4" />
-                  <span className="hidden sm:inline">Recorded</span>
+                  <span className="hidden sm:inline">ARCHIVE</span>
                 </button>
                 <button
                   onClick={() => setViewMode("realtime")}
-                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 ${
+                  className={`px-6 py-3 text-sm font-bold transition-all flex items-center gap-3 font-mono uppercase tracking-wider ${
                     viewMode === "realtime"
-                      ? "bg-accent-600 text-white shadow-glow border border-accent-500/50"
-                      : "text-tactical-muted hover:bg-tactical-surface hover:text-tactical-text"
+                      ? "bg-neon-pink text-cyber-black shadow-cyber-pink border-glow"
+                      : "text-neon-pink hover:bg-cyber-border hover:text-neon-pink border border-transparent hover:border-neon-pink"
                   }`}
                 >
                   <RiLiveLine className="w-4 h-4" />
-                  <span className="hidden sm:inline">Live</span>
+                  <span className="hidden sm:inline">REALTIME</span>
                 </button>
               </div>
             </div>
@@ -292,31 +293,32 @@ function App() {
       <div className="w-full min-h-0 flex-1">
         {viewMode === "realtime" ? (
           /* Real-time Detection Mode */
-          <div className="h-[calc(100vh-120px)] p-4 animate-fade-in">
+          <div className="h-[calc(100vh-120px)] p-6 cyber-scan">
             {/* Realtime Header */}
-            <div className="card">
-              <div className="card-header">
+            <div className="cyber-card">
+              <div className="cyber-card-header">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-gradient-to-br from-accent-600 to-accent-700 rounded-lg flex items-center justify-center shadow-glow">
-                      <RiLiveLine className="text-white text-xl" />
+                  <div className="flex items-center gap-6">
+                    <div className="w-12 h-12 bg-cyber-surface border-2 border-neon-pink flex items-center justify-center shadow-cyber-pink relative">
+                      <RiLiveLine className="text-neon-pink text-xl text-glow" />
+                      <div className="absolute inset-0 border border-neon-pink animate-flicker opacity-30"></div>
                     </div>
                     <div>
-                      <h2 className="text-xl font-bold text-tactical-text">
-                        Live Detection & Tracking
+                      <h2 className="text-xl font-bold text-neon-pink text-glow">
+                        >> NEURAL_STREAM_ACTIVE
                       </h2>
-                      <p className="text-sm text-tactical-muted">
-                        Real-time object detection with AI-powered tracking
+                      <p className="text-sm text-cyber-muted font-mono">
+                        [AI_DETECTION_ENGINE_PROCESSING...]
                       </p>
                     </div>
                   </div>
-                  <div className="status-connected">
-                    <div className="w-2 h-2 bg-success-400 rounded-full animate-pulse"></div>
-                    OPERATIONAL
+                  <div className="cyber-status-online">
+                    <div className="w-3 h-3 bg-neon-green animate-pulse"></div>
+                    SYSTEM_ONLINE
                   </div>
                 </div>
               </div>
-              <div className="card-body">
+              <div className="p-6">
                 <RealtimeVideoCanvas
                   onDetectionData={(data) => {
                     console.log("Real-time detection data:", data);
