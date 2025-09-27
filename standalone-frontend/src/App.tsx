@@ -10,6 +10,7 @@ import {
   HiLink,
   HiMap,
   HiAdjustments,
+  HiCube,
 } from "react-icons/hi";
 import { MdGpsFixed, MdAnalytics } from "react-icons/md";
 import { RiLiveLine, RiDashboardFill, RiFileListLine } from "react-icons/ri";
@@ -443,7 +444,7 @@ function App() {
                     </div>
                     <div>
                       <h3 className="font-semibold text-neon-green text-glow">
-                        &gt;&gt; QUICK_START.EXE
+                        &gt;&gt; QUICK START
                       </h3>
                       <p className="text-xs text-cyber-muted font-mono">
                         [INTERFACE_GUIDE_v1.0]

@@ -10,7 +10,11 @@ import {
 } from "react-icons/hi";
 import VideoCanvas from "./VideoCanvas";
 import DroneMapViewer from "./DroneMapViewer";
-import type { FrameDetections, DroneMetadata, SessionWithMetadata } from "./types";
+import type {
+  FrameDetections,
+  DroneMetadata,
+  SessionWithMetadata,
+} from "./types";
 
 interface VideoMapViewerProps {
   session: SessionWithMetadata;
