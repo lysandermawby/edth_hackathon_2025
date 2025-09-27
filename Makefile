@@ -10,6 +10,7 @@ CROP_SCRIPT := backend/video_crop/video_crop.py
 
 # Video map viewer variables
 MAP_VIEWER_SCRIPT := backend/tracking/drone_video_map_viewer.py
+METADATA_PATH := data/quantum_drone_flight/metadata.csv
 
 # default target
 analyse: 
@@ -28,8 +29,8 @@ crop:
 # Video map viewer target
 map_viewer:
 	@if [ -z "$(VIDEO_PATH)" ]; then echo "Error: VIDEO_PATH is not set"; exit 1; fi
-	@if [ -z "$(CONFIG_PATH)" ]; then echo "Error: CONFIG_PATH is not set"; exit 1; fi
-	@echo "Running video map viewer: $(VIDEO_PATH) with config: $(CONFIG_PATH)"
-	@python $(MAP_VIEWER_SCRIPT) $(VIDEO_PATH) $(CONFIG_PATH)
+	@if [ -z "$(METADATA_PATH)" ]; then echo "Error: METADATA_PATH is not set"; exit 1; fi
+	@echo "Running video map viewer: $(VIDEO_PATH) with metadata: $(METADATA_PATH)"
+	@python $(MAP_VIEWER_SCRIPT) $(VIDEO_PATH) $(METADATA_PATH)
 
 
