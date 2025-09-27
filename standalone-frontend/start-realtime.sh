@@ -15,17 +15,21 @@ pkill -f "realtime_server.py" 2>/dev/null || true
 pkill -f "node server.js" 2>/dev/null || true
 pkill -f "vite" 2>/dev/null || true
 
-# Check Python dependencies
+# Check Python dependencies using Poetry
 echo "🔧 Checking Python dependencies..."
-python3 -c "import websockets, cv2, ultralytics" 2>/dev/null || {
-    echo "❌ Missing Python dependencies. Installing..."
-    pip3 install -r requirements.txt
+cd ../backend
+poetry run python -c "import websockets, cv2, ultralytics" 2>/dev/null || {
+    echo "❌ Missing Python dependencies. Installing with Poetry..."
+    poetry install
 }
+cd ../standalone-frontend
 
 # Start the WebSocket real-time detection server
 echo "🎯 Starting real-time detection server on ws://localhost:8765..."
-python3 realtime_server.py &
+cd ../backend
+poetry run python ../standalone-frontend/realtime_server.py &
 REALTIME_PID=$!
+cd ../standalone-frontend
 
 # Wait for real-time server to start
 sleep 3

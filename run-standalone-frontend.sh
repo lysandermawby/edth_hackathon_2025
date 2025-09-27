@@ -17,6 +17,15 @@ echo "🧹 Cleaning up any existing processes..."
 pkill -f "node server.js" 2>/dev/null || true
 pkill -f "vite" 2>/dev/null || true
 
+# Check Python dependencies using Poetry
+echo "🔧 Checking Python dependencies..."
+cd backend
+poetry run python -c "import sqlite3, cv2" 2>/dev/null || {
+    echo "❌ Missing Python dependencies. Installing with Poetry..."
+    poetry install
+}
+cd standalone-frontend
+
 echo "🔧 Starting API server on port 3001..."
 node server.js &
 API_PID=$!
