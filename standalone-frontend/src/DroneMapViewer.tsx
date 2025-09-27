@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { MapContainer, TileLayer, Marker, Polyline, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Polyline, Polygon, useMap } from 'react-leaflet';
 import L, { LatLngExpression } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -25,10 +25,19 @@ interface DroneMetadata {
   hfov: number;
 }
 
+interface EnhancedTelemetryPoint extends DroneMetadata {
+  center_latitude: number;
+  center_longitude: number;
+  slant_range: number;
+  footprint?: number[][];  // [lon, lat] polygon coordinates
+}
+
 interface DroneMapViewerProps {
   metadata: DroneMetadata[];
   currentFrame: number;
   className?: string;
+  enhancedTelemetry?: EnhancedTelemetryPoint[];
+  showFootprints?: boolean;
 }
 
 // Custom drone icon
@@ -133,15 +142,21 @@ const MapController: React.FC<{
 const DroneMapViewer: React.FC<DroneMapViewerProps> = ({
   metadata,
   currentFrame,
-  className = ''
+  className = '',
+  enhancedTelemetry,
+  showFootprints = false
 }) => {
   const [mapZoom, setMapZoom] = useState(16);
   const [showFlightPath, setShowFlightPath] = useState(true);
   const [showFOV, setShowFOV] = useState(true);
+  const [showCameraFootprints, setShowCameraFootprints] = useState(showFootprints);
   const mapRef = useRef<L.Map | null>(null);
 
+  // Use enhanced telemetry if available, otherwise fall back to regular metadata
+  const activeData = enhancedTelemetry || metadata;
+
   // Filter valid GPS coordinates
-  const validMetadata = metadata.filter(
+  const validMetadata = activeData.filter(
     entry => entry.latitude > -90 && entry.latitude < 90 &&
              entry.longitude > -180 && entry.longitude < 180
   );
@@ -220,6 +235,19 @@ const DroneMapViewer: React.FC<DroneMapViewerProps> = ({
           />
           <label htmlFor="fov" className="text-sm">Field of View</label>
         </div>
+
+        {enhancedTelemetry && (
+          <div className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              id="camera-footprints"
+              checked={showCameraFootprints}
+              onChange={(e) => setShowCameraFootprints(e.target.checked)}
+              className="rounded"
+            />
+            <label htmlFor="camera-footprints" className="text-sm">📹 Camera Footprints</label>
+          </div>
+        )}
       </div>
 
       {/* Position Info */}
@@ -285,6 +313,45 @@ const DroneMapViewer: React.FC<DroneMapViewerProps> = ({
             yaw={currentMetadata.yaw}
             hfov={currentMetadata.hfov}
             range={300} // 300 meters range
+          />
+        )}
+
+        {/* Camera Footprints (Enhanced Telemetry) */}
+        {showCameraFootprints && enhancedTelemetry && enhancedTelemetry[currentFrame]?.footprint && (
+          <Polygon
+            positions={enhancedTelemetry[currentFrame].footprint!.map(coord => [coord[1], coord[0]])} // Convert [lon, lat] to [lat, lon]
+            pathOptions={{
+              color: '#ff6b35',
+              fillColor: '#ff6b35',
+              fillOpacity: 0.2,
+              weight: 2,
+              opacity: 0.8
+            }}
+          />
+        )}
+
+        {/* Center Point (What camera is looking at) */}
+        {enhancedTelemetry && enhancedTelemetry[currentFrame] && 'center_latitude' in enhancedTelemetry[currentFrame] && (
+          <Marker
+            position={[
+              (enhancedTelemetry[currentFrame] as EnhancedTelemetryPoint).center_latitude,
+              (enhancedTelemetry[currentFrame] as EnhancedTelemetryPoint).center_longitude
+            ]}
+            icon={L.divIcon({
+              className: 'camera-target',
+              html: `
+                <div style="
+                  width: 12px;
+                  height: 12px;
+                  background: #ff6b35;
+                  border: 2px solid white;
+                  border-radius: 50%;
+                  box-shadow: 0 0 6px rgba(0,0,0,0.5);
+                "></div>
+              `,
+              iconSize: [12, 12],
+              iconAnchor: [6, 6]
+            })}
           />
         )}
       </MapContainer>

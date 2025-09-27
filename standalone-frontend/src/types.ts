@@ -60,6 +60,45 @@ export interface DroneMetadata {
   hfov: number;
 }
 
+export interface EnhancedTelemetryPoint {
+  timestamp: number;
+  latitude: number;
+  longitude: number;
+  altitude: number;
+  roll: number;
+  pitch: number;
+  yaw: number;
+  gimbal_elevation: number;
+  gimbal_azimuth: number;
+  center_latitude: number;
+  center_longitude: number;
+  slant_range: number;
+  hfov: number;
+  vfov: number;
+  footprint?: number[][];  // [lon, lat] polygon coordinates
+}
+
+export interface FlightAnalytics {
+  total_distance: number;
+  max_altitude: number;
+  min_altitude: number;
+  avg_speed: number;
+  max_speed: number;
+  flight_duration: number;
+  coverage_area: number;
+  stability_metrics: {
+    roll_variance: number;
+    pitch_variance: number;
+    yaw_variance: number;
+  };
+}
+
+export interface EnhancedTelemetryData {
+  telemetry: EnhancedTelemetryPoint[];
+  analytics: FlightAnalytics | null;
+}
+
 export interface SessionWithMetadata extends Session {
   metadata?: DroneMetadata[];
+  enhanced_telemetry?: EnhancedTelemetryData;
 }

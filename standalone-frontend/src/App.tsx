@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import VideoMapViewer from "./VideoMapViewer";
 import RealtimeVideoCanvas from "./RealtimeVideoCanvas";
-import type { Session, FrameDetections, DetectionData, SessionWithMetadata } from "./types";
+import type { Session, FrameDetections, DetectionData, SessionWithMetadata, EnhancedTelemetryData } from "./types";
 
 const convertDetectionsToFrames = (
   detections: DetectionData[],
@@ -109,7 +109,19 @@ function App() {
       const frames = convertDetectionsToFrames(detections, session.fps);
       setTrackingData(frames);
 
-      // Load GPS metadata if available
+      // Load enhanced telemetry data if available
+      let enhancedTelemetry = null;
+      try {
+        const telemetryResponse = await fetch(`/api/sessions/${session.session_id}/telemetry`);
+        if (telemetryResponse.ok) {
+          enhancedTelemetry = await telemetryResponse.json();
+          console.log(`Loaded enhanced telemetry with ${enhancedTelemetry.telemetry?.length || 0} points`);
+        }
+      } catch (err) {
+        console.warn("Enhanced telemetry not available:", err);
+      }
+
+      // Load GPS metadata if available (legacy fallback)
       let gpsMetadata = [];
       if (metadataResponse.ok) {
         gpsMetadata = await metadataResponse.json();
@@ -121,7 +133,8 @@ function App() {
       // Convert session to SessionWithMetadata
       const sessionWithMetadata: SessionWithMetadata = {
         ...session,
-        metadata: gpsMetadata
+        metadata: gpsMetadata,
+        enhanced_telemetry: enhancedTelemetry
       };
 
       setSelectedSession(sessionWithMetadata);

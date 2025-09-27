@@ -355,6 +355,115 @@ app.get("/api/video/:videoPath(*)", (req, res) => {
   });
 });
 
+// Get enhanced telemetry data for a specific session
+app.get("/api/sessions/:sessionId/telemetry", (req, res) => {
+  const sessionId = parseInt(req.params.sessionId);
+
+  if (isNaN(sessionId)) {
+    res.status(400).json({ error: "Invalid session ID" });
+    return;
+  }
+
+  // Get session details to find the video path and calculate duration
+  db.get(
+    "SELECT video_path, fps, total_frames FROM tracking_sessions WHERE session_id = ?",
+    [sessionId],
+    (err, session) => {
+      if (err) {
+        console.error("Database error:", err);
+        res.status(500).json({ error: "Failed to fetch session" });
+        return;
+      }
+
+      if (!session) {
+        res.status(404).json({ error: "Session not found" });
+        return;
+      }
+
+      // Calculate video duration
+      const videoDuration = session.total_frames && session.fps 
+        ? session.total_frames / session.fps 
+        : 25.0; // fallback
+
+      // Extract directory from video path to find CSV file
+      const videoPath = session.video_path;
+      const videoBasename = path.basename(videoPath, path.extname(videoPath));
+      
+      // Look for CSV file with the same name as the video in the same directory
+      // Remove 'data/' prefix from video path if present since DATA_DIR already includes it
+      const relativePath = videoPath.startsWith('data/') ? videoPath.substring(5) : videoPath;
+      const csvFileName = `${videoBasename}.csv`;
+      const csvPath = path.join(DATA_DIR, path.dirname(relativePath), csvFileName);
+
+      console.log(`Looking for enhanced telemetry CSV at: ${csvPath}`);
+
+      if (!fs.existsSync(csvPath)) {
+        console.log(`CSV not found, sending empty telemetry for session ${sessionId}`);
+        res.json({ telemetry: [], analytics: null });
+        return;
+      }
+
+      try {
+        // Use Python script to parse enhanced telemetry
+        const python = spawn('python3', ['-c', `
+import sys
+import json
+sys.path.append('${path.join(__dirname, "..", "backend", "metadata_process")}')
+from enhanced_telemetry_parser import parse_telemetry_csv
+from pathlib import Path
+
+try:
+    result = parse_telemetry_csv(Path('${csvPath}'), ${videoDuration})
+    print(json.dumps(result))
+except Exception as e:
+    print(json.dumps({"error": str(e)}), file=sys.stderr)
+    sys.exit(1)
+        `]);
+
+        let output = '';
+        let error = '';
+
+        python.stdout.on('data', (data) => {
+          output += data.toString();
+        });
+
+        python.stderr.on('data', (data) => {
+          error += data.toString();
+        });
+
+        python.on('close', (code) => {
+          if (code !== 0) {
+            console.error('Enhanced telemetry parsing error:', error);
+            res.status(500).json({ error: "Failed to parse enhanced telemetry" });
+            return;
+          }
+
+          try {
+            const telemetryData = JSON.parse(output);
+            
+            if (telemetryData.error) {
+              console.error('Telemetry parser error:', telemetryData.error);
+              res.status(500).json({ error: telemetryData.error });
+              return;
+            }
+
+            console.log(`Loaded enhanced telemetry with ${telemetryData.telemetry.length} points for session ${sessionId}`);
+            res.json(telemetryData);
+
+          } catch (parseError) {
+            console.error('Failed to parse telemetry output:', parseError);
+            res.status(500).json({ error: "Invalid telemetry output" });
+          }
+        });
+
+      } catch (error) {
+        console.error("Error processing enhanced telemetry:", error);
+        res.status(500).json({ error: "Failed to process telemetry file" });
+      }
+    }
+  );
+});
+
 // Health check endpoint
 app.get("/api/health", (req, res) => {
   res.json({ status: "OK", timestamp: new Date().toISOString() });

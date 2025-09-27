@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import VideoCanvas from './VideoCanvas';
 import DroneMapViewer from './DroneMapViewer';
-import type { FrameDetections, DroneMetadata, SessionWithMetadata } from './types';
+import type { FrameDetections, DroneMetadata, SessionWithMetadata, EnhancedTelemetryPoint } from './types';
 
 interface VideoMapViewerProps {
   session: SessionWithMetadata;
@@ -33,13 +33,31 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
     return Math.max(0, Math.min(metadataIndex, metadata.length - 1));
   }, [duration]);
 
-  // Use actual metadata from session, or fallback to sample data
+  // Use enhanced telemetry if available, otherwise fall back to legacy metadata or sample data
   const actualMetadata: DroneMetadata[] = useMemo(() => {
+    // Priority 1: Enhanced telemetry (most accurate with camera footprints)
+    if (session.enhanced_telemetry?.telemetry && session.enhanced_telemetry.telemetry.length > 0) {
+      return session.enhanced_telemetry.telemetry.map(point => ({
+        timestamp: point.timestamp,
+        latitude: point.latitude,
+        longitude: point.longitude,
+        altitude: point.altitude,
+        roll: point.roll,
+        pitch: point.pitch,
+        yaw: point.yaw,
+        gimbal_elevation: point.gimbal_elevation,
+        gimbal_azimuth: point.gimbal_azimuth,
+        vfov: point.vfov,
+        hfov: point.hfov
+      }));
+    }
+
+    // Priority 2: Legacy metadata
     if (session.metadata && session.metadata.length > 0) {
       return session.metadata;
     }
 
-    // Generate sample data proportional to video duration
+    // Priority 3: Generate sample data proportional to video duration
     return Array.from({ length: 50 }, (_, i) => ({
       timestamp: i * (duration / 50),
       latitude: 48.1351 + (i / 50) * 0.01,
@@ -53,7 +71,7 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
       vfov: 60,
       hfov: 90
     }));
-  }, [session.metadata, duration]);
+  }, [session.enhanced_telemetry, session.metadata, duration]);
 
   // Update map frame when video time changes
   useEffect(() => {
@@ -83,6 +101,7 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
 
 
   const hasRealGpsData = session.metadata && session.metadata.length > 0;
+  const hasEnhancedTelemetry = session.enhanced_telemetry?.telemetry && session.enhanced_telemetry.telemetry.length > 0;
 
   return (
     <div className="space-y-6">
@@ -150,13 +169,34 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
                 <strong>Detections:</strong>{" "}
                 {trackingData.reduce((acc, frame) => acc + frame.objects.length, 0)}
               </p>
-              {session.metadata && session.metadata.length > 0 && (
+              {hasEnhancedTelemetry && (
                 <p>
-                  <strong>GPS Points:</strong> {session.metadata.length}
+                  <strong>📡 Enhanced Telemetry:</strong> {session.enhanced_telemetry!.telemetry.length} points
+                  <span className="text-xs ml-2 text-green-600">
+                    ✓ Camera footprints, flight analytics
+                  </span>
+                </p>
+              )}
+              {!hasEnhancedTelemetry && session.metadata && session.metadata.length > 0 && (
+                <p>
+                  <strong>📍 GPS Points:</strong> {session.metadata.length}
                   <span className="text-xs ml-2">
                     ({session.metadata[0].timestamp.toFixed(2)}s - {session.metadata[session.metadata.length - 1].timestamp.toFixed(2)}s)
                   </span>
                 </p>
+              )}
+              {hasEnhancedTelemetry && session.enhanced_telemetry!.analytics && (
+                <div className="text-xs text-gray-600 mt-2 space-y-1">
+                  <p>
+                    <strong>Flight:</strong> {session.enhanced_telemetry!.analytics.flight_duration.toFixed(1)}s • 
+                    {session.enhanced_telemetry!.analytics.total_distance.toFixed(0)}m distance • 
+                    {session.enhanced_telemetry!.analytics.avg_speed.toFixed(1)}m/s avg speed
+                  </p>
+                  <p>
+                    <strong>Coverage:</strong> {(session.enhanced_telemetry!.analytics.coverage_area / 10000).toFixed(1)} hectares • 
+                    Alt: {session.enhanced_telemetry!.analytics.min_altitude.toFixed(0)}-{session.enhanced_telemetry!.analytics.max_altitude.toFixed(0)}m
+                  </p>
+                </div>
               )}
             </div>
 
@@ -179,6 +219,8 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
               metadata={actualMetadata}
               currentFrame={mapFrame}
               className="w-full h-full"
+              enhancedTelemetry={hasEnhancedTelemetry ? session.enhanced_telemetry!.telemetry : undefined}
+              showFootprints={hasEnhancedTelemetry}
             />
           </div>
         </div>
