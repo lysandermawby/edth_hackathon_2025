@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
 import { HiStop, HiRefresh, HiVideoCamera } from "react-icons/hi";
 import { BiWifi } from "react-icons/bi";
 import { MdVideocam, MdVideoFile } from "react-icons/md";
-import type { TrackingObject } from "./types";
+import type { TrackingObject, ReidentificationStats } from "./types";
+import { RiEyeLine } from "react-icons/ri";
 
 interface RealtimeVideoCanvasProps {
   onDetectionData?: (data: DetectionFrame) => void;
@@ -14,6 +15,7 @@ interface DetectionFrame {
   detections: TrackingObject[];
   fps: number;
   session_id: number;
+  reid_stats?: ReidentificationStats;
 }
 
 interface ServerMessage {
@@ -35,6 +37,11 @@ const DETECTION_COLOURS = [
 ];
 
 const colourForObject = (obj: TrackingObject): string => {
+  // Use cyan for re-identified objects
+  if (obj.is_reidentified) {
+    return "#00D4FF";
+  }
+  
   const base = obj.tracker_id ?? obj.class_id ?? 0;
   const index = Math.abs(base) % DETECTION_COLOURS.length;
   return DETECTION_COLOURS[index];
@@ -72,10 +79,14 @@ const drawDetections = (
       labelParts.push(obj.class_name);
     }
     if (Number.isFinite(obj.tracker_id)) {
-      labelParts.push(`#${obj.tracker_id}`);
+      const idLabel = obj.is_reidentified ? `#${obj.tracker_id}*` : `#${obj.tracker_id}`;
+      labelParts.push(idLabel);
     }
     if (typeof obj.confidence === "number") {
       labelParts.push(`${Math.round(obj.confidence * 100)}%`);
+    }
+    if (obj.is_reidentified) {
+      labelParts.push("REID");
     }
 
     if (labelParts.length > 0) {
@@ -127,6 +138,12 @@ const RealtimeVideoCanvas: React.FC<RealtimeVideoCanvasProps> = ({
   const [availableCameras, setAvailableCameras] = useState<number[]>([
     0, 1, 2, 3,
   ]); // Default camera options
+  const [reidStats, setReidStats] = useState<ReidentificationStats>({
+    total_reidentifications: 0,
+    active_tracks: 0,
+    lost_tracks: 0,
+    success_rate: 0
+  });
 
   const connectWebSocket = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
@@ -229,6 +246,11 @@ const RealtimeVideoCanvas: React.FC<RealtimeVideoCanvasProps> = ({
       setObjectCount(message.detections?.length || 0);
       setFrameNumber(message.frame_number || 0);
       setCurrentDetections(message.detections || []);
+      
+      // Update re-identification statistics
+      if (message.reid_stats) {
+        setReidStats(message.reid_stats);
+      }
 
       // Call callback with detection data
       if (onDetectionData) {
@@ -238,6 +260,7 @@ const RealtimeVideoCanvas: React.FC<RealtimeVideoCanvasProps> = ({
           detections: message.detections || [],
           fps: message.fps || 0,
           session_id: message.session_id,
+          reid_stats: message.reid_stats,
         });
       }
 
@@ -384,7 +407,7 @@ const RealtimeVideoCanvas: React.FC<RealtimeVideoCanvasProps> = ({
       </div>
 
       {/* Performance Metrics */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-4 gap-4">
         <div className="stats-card bg-gradient-to-br from-primary-50 to-primary-100 border-primary-200">
           <div className="text-3xl font-bold text-primary-600">
             {fps.toFixed(1)}
@@ -408,12 +431,22 @@ const RealtimeVideoCanvas: React.FC<RealtimeVideoCanvasProps> = ({
           <div className="text-sm text-secondary-800 font-medium">Frame</div>
           <div className="text-xs text-secondary-600 mt-1">Current frame</div>
         </div>
+        <div className="stats-card bg-gradient-to-br from-cyan-50 to-cyan-100 border-cyan-200">
+          <div className="text-2xl font-bold text-cyan-600 flex items-center gap-2">
+            <RiEyeLine className="w-6 h-6" />
+            {reidStats.total_reidentifications}
+          </div>
+          <div className="text-sm text-cyan-800 font-medium">Re-IDs</div>
+          <div className="text-xs text-cyan-600 mt-1">
+            {reidStats.active_tracks} active, {reidStats.lost_tracks} lost
+          </div>
+        </div>
       </div>
 
       {/* Controls Panel */}
       <div className="card">
         <div className="card-header">
-          <h4 className="font-semibold text-neutral-900">Input Sources</h4>
+          <h4 className="font-semibold text-tactical-text">Input Sources</h4>
         </div>
         <div className="card-body">
           {/* Quick Start Controls */}
@@ -536,37 +569,43 @@ const RealtimeVideoCanvas: React.FC<RealtimeVideoCanvasProps> = ({
                 : "none",
           }}
         >
-          <div className="bg-gray-900 text-white rounded-lg shadow-xl border border-gray-600 p-3 max-w-xs">
-            <div className="space-y-1 text-sm">
-              <div className="font-semibold text-blue-300">
-                🎯 {hoveredObject.class_name}
-              </div>
-              {hoveredObject.tracker_id && (
-                <div className="text-gray-300">
-                  <span className="text-green-400">ID:</span> #
-                  {hoveredObject.tracker_id}
+            <div className="bg-tactical-surface border border-tactical-border rounded-lg shadow-glow p-3 max-w-xs backdrop-blur-sm">
+              <div className="space-y-1 text-sm">
+                <div className="font-semibold text-primary-300 flex items-center gap-2">
+                  <HiVideoCamera className="w-4 h-4" />
+                  {hoveredObject.class_name}
+                  {hoveredObject.is_reidentified && (
+                    <span className="px-1.5 py-0.5 bg-cyan-500/20 text-cyan-300 rounded text-xs border border-cyan-500/30">
+                      REID
+                    </span>
+                  )}
                 </div>
-              )}
-              <div className="text-gray-300">
-                <span className="text-yellow-400">Confidence:</span>{" "}
-                {Math.round(hoveredObject.confidence * 100)}%
+                {hoveredObject.tracker_id && (
+                  <div className="text-tactical-muted">
+                    <span className="text-green-400">ID:</span> #
+                    {hoveredObject.tracker_id}
+                  </div>
+                )}
+                <div className="text-tactical-muted">
+                  <span className="text-yellow-400">Confidence:</span>{" "}
+                  {Math.round(hoveredObject.confidence * 100)}%
+                </div>
+                {hoveredObject.bbox && (
+                  <>
+                    <div className="text-tactical-muted">
+                      <span className="text-purple-400">Position:</span> (
+                      {Math.round(hoveredObject.bbox.x1)},{" "}
+                      {Math.round(hoveredObject.bbox.y1)})
+                    </div>
+                    <div className="text-tactical-muted">
+                      <span className="text-orange-400">Size:</span>{" "}
+                      {Math.round(hoveredObject.bbox.x2 - hoveredObject.bbox.x1)}{" "}
+                      ×{" "}
+                      {Math.round(hoveredObject.bbox.y2 - hoveredObject.bbox.y1)}
+                    </div>
+                  </>
+                )}
               </div>
-              {hoveredObject.bbox && (
-                <>
-                  <div className="text-gray-300">
-                    <span className="text-purple-400">Position:</span> (
-                    {Math.round(hoveredObject.bbox.x1)},{" "}
-                    {Math.round(hoveredObject.bbox.y1)})
-                  </div>
-                  <div className="text-gray-300">
-                    <span className="text-orange-400">Size:</span>{" "}
-                    {Math.round(hoveredObject.bbox.x2 - hoveredObject.bbox.x1)}{" "}
-                    ×{" "}
-                    {Math.round(hoveredObject.bbox.y2 - hoveredObject.bbox.y1)}
-                  </div>
-                </>
-              )}
-            </div>
             <div
               className="absolute w-0 h-0 border-l-[6px] border-r-[6px] border-t-[6px] border-l-transparent border-r-transparent border-t-gray-900"
               style={{

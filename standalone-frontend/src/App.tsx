@@ -239,7 +239,7 @@ function App() {
     <div className="min-h-screen bg-tactical-bg">
       {/* Header Navigation */}
       <header className="tactical-panel border-b border-tactical-border shadow-tactical">
-        <div className="max-w-7xl mx-auto px-6 py-4">
+        <div className="w-full px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-4">
@@ -248,48 +248,32 @@ function App() {
                 </div>
                 <div>
                   <h1 className="text-2xl font-bold text-tactical-text">
-                    EDTH OBJECT TRACKER
+                    EDTH Object Tracker
                   </h1>
-                  <p className="text-sm text-tactical-muted font-mono uppercase tracking-wider">
-                    TACTICAL SURVEILLANCE SYSTEM v2.1
+                  <p className="text-sm text-tactical-muted">
+                    Advanced object detection and tracking
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* Status Indicators */}
+            {/* Mode Selector */}
             <div className="flex items-center gap-6">
-              <div className="hidden lg:flex items-center gap-3 text-sm">
-                <div className="flex items-center gap-2 px-3 py-1 bg-success-900/30 border border-success-600/50 rounded-full">
-                  <div className="w-2 h-2 bg-success-400 rounded-full animate-pulse shadow-glow"></div>
-                  <span className="text-success-300 font-mono uppercase tracking-wide">
-                    SYS ONLINE
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 px-3 py-1 bg-primary-900/30 border border-primary-600/50 rounded-full">
-                  <HiServer className="w-3 h-3 text-primary-400" />
-                  <span className="text-primary-300 font-mono uppercase tracking-wide">
-                    SECURE
-                  </span>
-                </div>
-              </div>
-
-              {/* Mode Selector */}
               <div className="bg-tactical-surface/50 rounded-xl p-1 border border-tactical-border shadow-inner-glow">
                 <button
                   onClick={() => setViewMode("recorded")}
-                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 uppercase tracking-wide ${
+                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 ${
                     viewMode === "recorded"
                       ? "bg-primary-600 text-white shadow-glow border border-primary-500/50"
                       : "text-tactical-muted hover:bg-tactical-surface hover:text-tactical-text"
                   }`}
                 >
                   <HiFolder className="w-4 h-4" />
-                  <span className="hidden sm:inline">Archive</span>
+                  <span className="hidden sm:inline">Recorded</span>
                 </button>
                 <button
                   onClick={() => setViewMode("realtime")}
-                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 uppercase tracking-wide ${
+                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 ${
                     viewMode === "realtime"
                       ? "bg-accent-600 text-white shadow-glow border border-accent-500/50"
                       : "text-tactical-muted hover:bg-tactical-surface hover:text-tactical-text"
@@ -305,10 +289,10 @@ function App() {
       </header>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto p-6">
+      <div className="w-full min-h-0 flex-1">
         {viewMode === "realtime" ? (
           /* Real-time Detection Mode */
-          <div className="space-y-6 animate-fade-in">
+          <div className="h-[calc(100vh-120px)] p-4 animate-fade-in">
             {/* Realtime Header */}
             <div className="card">
               <div className="card-header">
@@ -318,11 +302,11 @@ function App() {
                       <RiLiveLine className="text-white text-xl" />
                     </div>
                     <div>
-                      <h2 className="text-xl font-bold text-tactical-text uppercase tracking-wide">
-                        LIVE TACTICAL SURVEILLANCE
+                      <h2 className="text-xl font-bold text-tactical-text">
+                        Live Detection & Tracking
                       </h2>
-                      <p className="text-sm text-tactical-muted font-mono uppercase tracking-wider">
-                        REAL-TIME AI DETECTION & TRACKING SYSTEM
+                      <p className="text-sm text-tactical-muted">
+                        Real-time object detection with AI-powered tracking
                       </p>
                     </div>
                   </div>
@@ -343,9 +327,9 @@ function App() {
           </div>
         ) : (
           /* Recorded Sessions Mode */
-          <div className="grid grid-cols-1 xl:grid-cols-4 gap-6 animate-fade-in">
+          <div className="flex h-[calc(100vh-120px)] gap-4 p-4 animate-fade-in">
             {/* Session Selection Sidebar */}
-            <div className="xl:col-span-1">
+            <div className="w-80 flex-shrink-0">
               <div className="card sticky top-6">
                 <div className="card-header">
                   <div className="flex items-center gap-3">
@@ -353,11 +337,11 @@ function App() {
                       <RiFileListLine className="text-white text-lg" />
                     </div>
                     <div>
-                      <h2 className="text-lg font-bold text-tactical-text uppercase tracking-wide">
-                        MISSION ARCHIVE
+                      <h2 className="text-lg font-bold text-tactical-text">
+                        Recorded Sessions
                       </h2>
-                      <p className="text-xs text-tactical-muted font-mono uppercase tracking-wider">
-                        {sessions.length} SESSIONS AVAILABLE
+                      <p className="text-xs text-tactical-muted">
+                        {sessions.length} sessions available
                       </p>
                     </div>
                   </div>
@@ -365,10 +349,8 @@ function App() {
 
                 <div className="p-4">
                   {error && (
-                    <div className="mb-4 p-3 bg-accent-900/50 border border-accent-600/50 text-accent-300 rounded-lg text-sm shadow-inner-glow">
-                      <div className="font-semibold uppercase tracking-wide">
-                        SYSTEM ERROR
-                      </div>
+                    <div className="mb-4 p-3 bg-accent-900/50 border border-accent-600/50 text-accent-200 rounded-lg text-sm shadow-inner-glow">
+                      <div className="font-semibold">System Error</div>
                       <div className="text-xs mt-1 font-mono">{error}</div>
                     </div>
                   )}
@@ -386,8 +368,8 @@ function App() {
                       >
                         <div className="flex items-start justify-between">
                           <div className="flex-1 min-w-0">
-                            <div className="font-semibold text-sm text-tactical-text truncate uppercase tracking-wide">
-                              MISSION #{session.session_id}
+                            <div className="font-semibold text-sm text-tactical-text truncate">
+                              Session #{session.session_id}
                             </div>
                             <div className="text-xs text-tactical-muted mt-1 truncate font-mono">
                               {session.video_path.split("/").pop()}
@@ -445,8 +427,8 @@ function App() {
               </div>
             </div>
 
-            {/* Main Content Area */}
-            <div className="xl:col-span-3">
+            {/* Main Content Area - Map Hero */}
+            <div className="flex-1 flex flex-col min-h-0">
               {loading && (
                 <div className="card">
                   <div className="card-body">
@@ -454,10 +436,10 @@ function App() {
                       <div className="flex flex-col items-center gap-4">
                         <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600"></div>
                         <div className="text-center">
-                          <div className="font-medium text-neutral-900">
+                          <div className="font-medium text-tactical-text">
                             Loading Session Data
                           </div>
-                          <div className="text-sm text-neutral-600 mt-1">
+                          <div className="text-sm text-tactical-muted mt-1">
                             Processing tracking data and metadata...
                           </div>
                         </div>
@@ -478,10 +460,10 @@ function App() {
                             <RiDashboardFill className="text-white text-lg" />
                           </div>
                           <div>
-                            <h3 className="text-lg font-semibold text-neutral-900">
+                            <h3 className="text-lg font-semibold text-tactical-text">
                               Session #{selectedSession.session_id}
                             </h3>
-                            <p className="text-sm text-neutral-600">
+                            <p className="text-sm text-tactical-muted">
                               {selectedSession.video_path.split("/").pop()}
                             </p>
                           </div>
@@ -591,15 +573,15 @@ function App() {
                       <div className="w-16 h-16 bg-gradient-to-br from-primary-100 to-secondary-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
                         <HiLocationMarker className="text-primary-600 text-2xl" />
                       </div>
-                      <h3 className="text-xl font-semibold text-neutral-900 mb-2">
+                      <h3 className="text-xl font-semibold text-tactical-text mb-2">
                         Select a Session
                       </h3>
-                      <p className="text-neutral-600 max-w-md mx-auto">
+                      <p className="text-tactical-muted max-w-md mx-auto">
                         Choose a tracking session from the sidebar to view the
                         video with object detections and synchronized drone
                         telemetry
                       </p>
-                      <div className="mt-6 text-sm text-neutral-500 flex items-center justify-center gap-2">
+                      <div className="mt-6 text-sm text-tactical-muted flex items-center justify-center gap-2">
                         <HiServer className="w-4 h-4" />
                         Sessions with GPS data will show flight paths and camera
                         footprints

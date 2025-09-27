@@ -139,7 +139,7 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
             <div className="w-6 h-6 bg-secondary-600 rounded flex items-center justify-center">
               <HiCog className="text-white text-sm" />
             </div>
-            <h4 className="font-semibold text-neutral-900">
+            <h4 className="font-semibold text-tactical-text">
               Synchronization Controls
             </h4>
           </div>
@@ -157,7 +157,7 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
                 />
                 <label
                   htmlFor="sync-map"
-                  className="text-sm font-medium text-neutral-900 flex items-center gap-2"
+                  className="text-sm font-medium text-tactical-text flex items-center gap-2"
                 >
                   <HiLink className="w-4 h-4" />
                   Auto-sync with video
@@ -166,7 +166,7 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
 
               {!isMapSynced && (
                 <div className="flex items-center gap-3">
-                  <label className="text-sm text-neutral-600">
+                  <label className="text-sm text-tactical-muted">
                     Manual frame:
                   </label>
                   <input
@@ -184,7 +184,7 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
               )}
             </div>
 
-            <div className="text-sm text-neutral-600 space-y-1">
+            <div className="text-sm text-tactical-muted space-y-1">
               <div className="flex items-center gap-2">
                 <span className="font-medium">Video:</span>
                 <span className="font-mono">
@@ -225,10 +225,10 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
                 <HiVideoCamera className="text-white text-sm" />
               </div>
               <div>
-                <h3 className="font-semibold text-neutral-900">
+                <h3 className="font-semibold text-tactical-text">
                   Video Analysis
                 </h3>
-                <p className="text-xs text-neutral-600">
+                <p className="text-xs text-tactical-muted">
                   {session.video_path.split("/").pop()}
                 </p>
               </div>
@@ -241,7 +241,7 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
                 <div className="text-lg font-bold text-primary-600">
                   {trackingData.length}
                 </div>
-                <div className="text-xs text-neutral-600">Frames</div>
+                <div className="text-xs text-tactical-muted">Frames</div>
               </div>
               <div className="text-center">
                 <div className="text-lg font-bold text-success-600">
@@ -250,7 +250,7 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
                     0
                   )}
                 </div>
-                <div className="text-xs text-neutral-600">Detections</div>
+                <div className="text-xs text-tactical-muted">Detections</div>
               </div>
             </div>
 
@@ -344,10 +344,10 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
                 <HiMap className="text-white text-sm" />
               </div>
               <div>
-                <h3 className="font-semibold text-neutral-900">
+                <h3 className="font-semibold text-tactical-text">
                   {hasRealGpsData ? "Flight Path & Position" : "Map View"}
                 </h3>
-                <p className="text-xs text-neutral-600">
+                <p className="text-xs text-tactical-muted">
                   {hasRealGpsData
                     ? "Real-time GPS tracking"
                     : "No GPS data available"}
@@ -382,10 +382,10 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
                 <HiChartBar className="text-white text-sm" />
               </div>
               <div>
-                <h3 className="font-semibold text-neutral-900">
+                <h3 className="font-semibold text-tactical-text">
                   Live Telemetry
                 </h3>
-                <p className="text-xs text-neutral-600">
+                <p className="text-xs text-tactical-muted">
                   Frame {mapFrame} telemetry data
                 </p>
               </div>
@@ -435,7 +435,7 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
                   </div>
                 </div>
                 <div className="metric-display bg-gradient-to-br from-neutral-50 to-neutral-100 border-neutral-200">
-                  <div className="text-xs text-neutral-600 font-medium">
+                  <div className="text-xs text-tactical-muted font-medium">
                     Roll
                   </div>
                   <div className="text-lg font-mono font-bold text-neutral-800">
@@ -444,7 +444,7 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
                 </div>
               </div>
             ) : (
-              <div className="text-center py-8 text-neutral-500">
+              <div className="text-center py-8 text-tactical-muted">
                 <HiWifi className="text-neutral-400 text-2xl mb-2 mx-auto" />
                 <div className="font-medium">No telemetry data</div>
                 <div className="text-sm">
@@ -464,10 +464,10 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
               <HiBookOpen className="text-white text-sm" />
             </div>
             <div>
-              <h3 className="font-semibold text-neutral-900">
+              <h3 className="font-semibold text-tactical-text">
                 Quick Start Guide
               </h3>
-              <p className="text-xs text-neutral-600">
+              <p className="text-xs text-tactical-muted">
                 Learn how to use the interface effectively
               </p>
             </div>
@@ -476,13 +476,13 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
         <div className="card-body">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="space-y-3">
-              <h4 className="font-medium text-neutral-900 flex items-center gap-2">
+              <h4 className="font-medium text-tactical-text flex items-center gap-2">
                 <span className="w-5 h-5 bg-primary-100 text-primary-600 rounded-full flex items-center justify-center text-xs font-bold">
                   1
                 </span>
                 Video Controls
               </h4>
-              <ul className="space-y-2 text-sm text-neutral-600">
+              <ul className="space-y-2 text-sm text-tactical-muted">
                 <li className="flex items-start gap-2">
                   <HiPlay className="text-primary-500 w-4 h-4 mt-0.5 flex-shrink-0" />
                   <span>Click Play/Pause to control video playback</span>
@@ -500,13 +500,13 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
               </ul>
             </div>
             <div className="space-y-3">
-              <h4 className="font-medium text-neutral-900 flex items-center gap-2">
+              <h4 className="font-medium text-tactical-text flex items-center gap-2">
                 <span className="w-5 h-5 bg-secondary-100 text-secondary-600 rounded-full flex items-center justify-center text-xs font-bold">
                   2
                 </span>
                 Map Controls
               </h4>
-              <ul className="space-y-2 text-sm text-neutral-600">
+              <ul className="space-y-2 text-sm text-tactical-muted">
                 <li className="flex items-start gap-2">
                   <HiLink className="text-secondary-500 w-4 h-4 mt-0.5 flex-shrink-0" />
                   <span>Toggle sync to link map with video timeline</span>
@@ -522,13 +522,13 @@ const VideoMapViewer: React.FC<VideoMapViewerProps> = ({
               </ul>
             </div>
             <div className="space-y-3">
-              <h4 className="font-medium text-neutral-900 flex items-center gap-2">
+              <h4 className="font-medium text-tactical-text flex items-center gap-2">
                 <span className="w-5 h-5 bg-success-100 text-success-600 rounded-full flex items-center justify-center text-xs font-bold">
                   3
                 </span>
                 Analysis Features
               </h4>
-              <ul className="space-y-2 text-sm text-neutral-600">
+              <ul className="space-y-2 text-sm text-tactical-muted">
                 <li className="flex items-start gap-2">
                   <HiChartBar className="text-success-500 w-4 h-4 mt-0.5 flex-shrink-0" />
                   <span>Monitor live telemetry data in real-time</span>

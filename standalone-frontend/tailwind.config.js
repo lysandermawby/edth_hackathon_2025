@@ -89,8 +89,8 @@ export default {
           bg: "#0a0f1c", // Deep navy background
           surface: "#1a1f2e", // Card/surface color
           border: "#2a2f3e", // Border color
-          text: "#e2e8f0", // Main text
-          muted: "#94a3b8", // Muted text
+          text: "#f1f5f9", // Brighter main text for better readability
+          muted: "#cbd5e1", // Lighter muted text for better contrast
           glow: "#00d4ff", // Cyan glow for highlights
         },
       },

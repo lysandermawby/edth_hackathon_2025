@@ -12,6 +12,7 @@ export interface TrackingObject {
   confidence: number;
   bbox: BoundingBox;
   center?: { x: number; y: number };
+  is_reidentified?: boolean;
 }
 
 export interface FrameDetections {
@@ -96,6 +97,13 @@ export interface FlightAnalytics {
 export interface EnhancedTelemetryData {
   telemetry: EnhancedTelemetryPoint[];
   analytics: FlightAnalytics | null;
+}
+
+export interface ReidentificationStats {
+  total_reidentifications: number;
+  active_tracks: number;
+  lost_tracks: number;
+  success_rate: number;
 }
 
 export interface SessionWithMetadata extends Session {

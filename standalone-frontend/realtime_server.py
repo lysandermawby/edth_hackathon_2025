@@ -22,7 +22,7 @@ import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'backend', 'tracking'))
 
 try:
-    from integrated_realtime_tracker import IntegratedRealtimeTracker
+    from realtime_reidentification_tracker import RealtimeReidentificationTracker
     from database_integration import TrackingDatabase, RealTimeDataProcessor
 except ImportError as e:
     print(f"Error importing tracking modules: {e}")
@@ -40,12 +40,14 @@ class RealtimeDetectionServer:
         if db_path is None:
             db_path = project_root / "databases" / "tracking_data.db"
             
-        # Initialize tracker
-        self.tracker = IntegratedRealtimeTracker(
+        # Initialize enhanced tracker with re-identification
+        self.tracker = RealtimeReidentificationTracker(
             model_path=str(model_path),
             db_path=str(db_path),
-            headless=True,
-            enable_database=True
+            show_labels=True,
+            ignore_classes=None,
+            enable_database=True,
+            max_occlusion_frames=60
         )
         
         # WebSocket connections
@@ -136,8 +138,12 @@ class RealtimeDetectionServer:
             
             # Start database session
             source_path = str(source) if isinstance(source, int) else source
-            session_id = self.tracker.data_processor.db.start_session(f"realtime_{source_path}", fps)
-            self.tracker.data_processor.start_processing(f"realtime_{source_path}", fps, session_id)
+            if self.tracker.enable_database and self.tracker.db:
+                session_id = self.tracker.db.start_session(f"realtime_{source_path}", fps)
+                if self.tracker.data_processor:
+                    self.tracker.data_processor.start_processing(f"realtime_{source_path}", fps, session_id)
+            else:
+                session_id = f"realtime_{int(time.time())}"
             
             print(f"Started video processing from source: {source}")
             print(f"Resolution: {width}x{height}, FPS: {fps}")
@@ -181,7 +187,7 @@ class RealtimeDetectionServer:
                     # Convert frame to base64
                     frame_base64 = self.frame_to_base64(info_frame)
                     
-                    # Prepare detection data for frontend
+                    # Prepare detection data for frontend with re-identification info
                     detection_objects = []
                     for obj in tracking_data['objects']:
                         detection_objects.append({
@@ -190,8 +196,12 @@ class RealtimeDetectionServer:
                             "class_name": obj['class_name'],
                             "confidence": obj['confidence'],
                             "bbox": obj['bbox'],
-                            "center": obj['center']
+                            "center": obj['center'],
+                            "is_reidentified": obj.get('is_reidentified', False)
                         })
+                    
+                    # Get re-identification statistics
+                    reid_stats = self.tracker.reid_system.get_statistics()
                     
                     # Send frame and detection data to clients
                     message = {
@@ -201,7 +211,13 @@ class RealtimeDetectionServer:
                         "frame_data": frame_base64,
                         "detections": detection_objects,
                         "fps": avg_fps,
-                        "session_id": session_id
+                        "session_id": session_id,
+                        "reid_stats": {
+                            "total_reidentifications": reid_stats.get('successful_reidentifications', 0),
+                            "active_tracks": reid_stats.get('active_tracks', 0),
+                            "lost_tracks": reid_stats.get('lost_tracks_count', 0),
+                            "success_rate": reid_stats.get('success_rate', 0.0)
+                        }
                     }
                     
                     await self.broadcast(json.dumps(message))
@@ -236,7 +252,7 @@ class RealtimeDetectionServer:
             self.cap = None
             
         # Stop database processing
-        if hasattr(self.tracker, 'data_processor') and self.tracker.data_processor:
+        if self.tracker.enable_database and hasattr(self.tracker, 'data_processor') and self.tracker.data_processor:
             self.tracker.data_processor.stop_processing(self.frame_count)
             
         await self.broadcast(json.dumps({
