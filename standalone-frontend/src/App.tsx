@@ -10,13 +10,12 @@ import {
   HiLink,
   HiMap,
   HiAdjustments,
-  HiCube,
 } from "react-icons/hi";
 import { MdGpsFixed, MdAnalytics } from "react-icons/md";
 import { RiLiveLine, RiDashboardFill, RiFileListLine } from "react-icons/ri";
 import VideoMapViewer from "./VideoMapViewer";
 import RealtimeVideoCanvas from "./RealtimeVideoCanvas";
-import DroneVisualization3D from "./DroneVisualization3D";
+import DroneStatusDisplay from "./DroneStatusDisplay";
 import type {
   Session,
   FrameDetections,
@@ -550,33 +549,11 @@ function App() {
                 </div>
               </div>
 
-              {/* 3D Drone Visualization */}
-              <div className="cyber-card mt-6">
-                <div className="cyber-card-header">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-cyber-surface border-2 border-neon-purple flex items-center justify-center shadow-cyber relative">
-                      <HiCube className="text-neon-purple text-sm text-glow" />
-                      <div className="absolute inset-0 border border-neon-purple animate-pulse-neon opacity-30"></div>
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-neon-purple text-glow">
-                        &gt;&gt; DRONE_3D.EXE
-                      </h3>
-                      <p className="text-xs text-cyber-muted font-mono">
-                        [ORIENTATION_TRACKER_v1.2]
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                <div className="p-4">
-                  <div className="h-48">
-                    <DroneVisualization3D
-                      metadata={currentMetadata}
-                      className="h-full"
-                    />
-                  </div>
-                </div>
-              </div>
+              {/* Drone Status Display */}
+              <DroneStatusDisplay
+                metadata={currentMetadata}
+                className="mt-6"
+              />
             </div>
 
             {/* Main Content Area - Map Hero */}
