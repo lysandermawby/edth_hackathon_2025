@@ -72,6 +72,15 @@
 
 /* Cyberpunk Components */
 @layer components {
+  /* App Scaling for 75% zoom effect */
+  .app-scaled {
+    transform: scale(0.75);
+    transform-origin: top left;
+    width: 133.33%; /* 100% / 0.75 = 133.33% */
+    height: 133.33%;
+    overflow-x: hidden; /* Prevent horizontal scrollbar */
+  }
+
   /* Main UI Elements */
   .cyber-panel {
     @apply bg-cyber-bg border border-cyber-border shadow-cyber;

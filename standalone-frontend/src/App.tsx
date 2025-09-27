@@ -234,7 +234,7 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-cyber-black">
+    <div className="min-h-screen bg-cyber-black app-scaled">
       {/* Header Navigation */}
       <header className="cyber-panel border-b border-cyber-border">
         <div className="w-full px-6 py-4">
