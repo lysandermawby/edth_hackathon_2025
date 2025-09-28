@@ -94,7 +94,8 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(SCRIPT_DIR))
 
 class RealtimeReidentificationTracker:
     def __init__(self, model_path=None, show_labels=True, ignore_classes=None, 
-                 enable_database=True, db_path=None, max_occlusion_frames=60):
+                 enable_database=True, db_path=None, max_occlusion_frames=60,
+                 conf_threshold=0.15, enable_preprocessing=False):
         """
         Initialize the real-time tracker with re-identification capabilities
         
@@ -112,13 +113,22 @@ class RealtimeReidentificationTracker:
         if db_path is None:
             db_path = os.path.join(PROJECT_ROOT, "databases", "tracking_data.db")
         
-        # Initialize core components
-        self.tracker = sv.ByteTrack()
+        # Initialize core components with conservative tracking parameters
+        # These parameters help maintain track consistency and reduce ID switching
+        self.tracker = sv.ByteTrack(
+            track_activation_threshold=0.5,    # Higher threshold for track confirmation
+            lost_track_buffer=60,              # Longer buffer for track persistence (2x default)
+            minimum_matching_threshold=0.8,    # Higher threshold for track matching
+            frame_rate=30,                     # Expected frame rate
+            minimum_consecutive_frames=3       # Require more consecutive frames for track confirmation
+        )
         self.model = YOLO(model_path)
         self.annotator = sv.LabelAnnotator(text_position=sv.Position.CENTER)
         self.box_annotator = sv.BoxAnnotator()
         self.show_labels = show_labels
         self.ignore_classes = ignore_classes or []
+        self.conf_threshold = conf_threshold
+        self.enable_preprocessing = enable_preprocessing
         
         # Initialize re-identification system with enhanced parameters for longer occlusions
         self.reid_system = RobustReidentificationSystem(max_occlusion_frames=max_occlusion_frames)
@@ -478,10 +488,37 @@ class RealtimeReidentificationTracker:
         # Update previous active tracks
         self._previous_active_tracks = active_track_ids.copy()
     
+    def preprocess_frame(self, frame):
+        """Preprocess frame to improve detection in challenging conditions"""
+        # Convert to LAB color space for better contrast enhancement
+        lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
+        l, a, b = cv2.split(lab)
+        
+        # Apply CLAHE (Contrast Limited Adaptive Histogram Equalization) to L channel
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        l = clahe.apply(l)
+        
+        # Merge channels and convert back to BGR
+        enhanced = cv2.merge([l, a, b])
+        enhanced = cv2.cvtColor(enhanced, cv2.COLOR_LAB2BGR)
+        
+        # Apply slight gamma correction to brighten dark areas
+        gamma = 1.2
+        enhanced = np.power(enhanced / 255.0, 1.0 / gamma) * 255.0
+        enhanced = np.uint8(enhanced)
+        
+        return enhanced
+
     def process_frame(self, frame, frame_timestamp):
         """Process a single frame for detection, tracking, and re-identification"""
-        # Run YOLO detection
-        result = self.model(frame, verbose=False)[0]
+        # Preprocess frame for better detection in challenging conditions
+        if self.enable_preprocessing:
+            enhanced_frame = self.preprocess_frame(frame)
+        else:
+            enhanced_frame = frame
+        
+        # Run YOLO detection with configurable confidence threshold for better sensitivity
+        result = self.model(enhanced_frame, conf=self.conf_threshold, verbose=False)[0]
         detections = sv.Detections.from_ultralytics(result)
         
         # Filter ignored classes
@@ -1073,8 +1110,14 @@ class RealtimeReidentificationTracker:
                         cv2.imwrite(filename, annotated_frame)
                         print(f"Frame saved as {filename}")
                 elif key == ord('r'):
-                    # Reset tracker
-                    self.tracker = sv.ByteTrack()
+                    # Reset tracker with same conservative parameters
+                    self.tracker = sv.ByteTrack(
+                        track_activation_threshold=0.5,
+                        lost_track_buffer=60,
+                        minimum_matching_threshold=0.8,
+                        frame_rate=30,
+                        minimum_consecutive_frames=3
+                    )
                     self.reid_system = RobustReidentificationSystem()
                     self.track_history = {}
                     print("Tracker and re-identification system reset")
@@ -1145,6 +1188,10 @@ def parse_arguments():
                        help=f"Path to SQLite database file (default: {default_db})")
     parser.add_argument("--max-occlusion-frames", type=int, default=60,
                        help="Maximum frames to keep a lost track (default: 60)")
+    parser.add_argument("--conf-threshold", type=float, default=0.15,
+                       help="YOLO confidence threshold for detection (default: 0.15, lower = more sensitive)")
+    parser.add_argument("--enable-preprocessing", action="store_true",
+                       help="Enable image preprocessing for better detection in challenging conditions")
     return parser.parse_args()
 
 def main():
@@ -1157,7 +1204,9 @@ def main():
         ignore_classes=args.ignore_classes,
         enable_database=not args.no_database,
         db_path=args.db_path,
-        max_occlusion_frames=args.max_occlusion_frames
+        max_occlusion_frames=args.max_occlusion_frames,
+        conf_threshold=args.conf_threshold,
+        enable_preprocessing=args.enable_preprocessing
     )
     
     tracker.run(args.video_path)
