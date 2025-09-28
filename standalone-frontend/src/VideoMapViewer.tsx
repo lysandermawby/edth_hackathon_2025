@@ -5,7 +5,6 @@ import {
   HiCog,
   HiLink,
   HiChartBar,
-  HiWifi,
   HiLocationMarker,
   HiRefresh,
 } from "react-icons/hi";
