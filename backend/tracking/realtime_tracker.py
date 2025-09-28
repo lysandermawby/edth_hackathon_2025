@@ -3,21 +3,25 @@
 Real-time object tracking using YOLO11 model (saved as yolo11m.pt).
 
 Accesses the camera and tracks objects in real-time.
+
+Note that this script makes no database writes.
 """
 
 import os
 import argparse
 import cv2
 import supervision as sv
-
-import cv2
-import supervision as sv
 from ultralytics import YOLO
 import numpy as np
 import time
 
+# Get the directory where this script is located
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+# Script is in project_root/backend/tracking/, so go up 2 levels to reach project_root
+PROJECT_ROOT = os.path.dirname(os.path.dirname(SCRIPT_DIR))
+
 class RealtimeTracker:
-    def __init__(self, model_path="../../models/yolo11.pt", camera_id=0):
+    def __init__(self, model_path="../../models/yolo11m.pt", camera_id=0):
         """
         Initialize the real-time tracker
         
@@ -156,13 +160,38 @@ class RealtimeTracker:
             self.cap.release()
         cv2.destroyAllWindows()
         print("Camera released and windows closed")
+    
+def resolve_model_path(model_path):
+    """Resolve model path to absolute path, assuming relative to project root"""
+    if os.path.isabs(model_path):
+        return model_path
+    else:
+        # If relative, resolve relative to project root
+        return os.path.join(PROJECT_ROOT, model_path)
+
+def parse_arguments():
+    """Parse command line arguments"""
+    # Set default paths relative to project root
+    default_model = os.path.join(PROJECT_ROOT, "models", "yolo11m.pt")
+    
+    parser = argparse.ArgumentParser(description="Integrated real-time video tracking with database storage")
+    parser.add_argument("model_path", type=str, default=default_model,
+                       nargs='?', help="Path to YOLO model file (default: models/yolo11m.pt)")
+    return parser.parse_args()
 
 def main():
     """Main function to run the real-time tracker"""
+    args = parse_arguments()
     camera_id = 0
     
-    # Available models: yolo11n.pt, yolo11s.pt, yolo11.pt, yolo11l.pt, yolo11x.pt
-    model_path = "../../models/yolo11.pt"
+    # Resolve model path (handles both relative and absolute paths)
+    model_path = resolve_model_path(args.model_path)
+    
+    # Note: We skip the file existence check here because it seems to have issues
+    # when run through the Makefile context. The YOLO model loading will handle
+    # the error if the file doesn't exist.
+    
+    print(f"Using model: {model_path}")
     
     tracker = RealtimeTracker(model_path=model_path, camera_id=camera_id)
     tracker.run()

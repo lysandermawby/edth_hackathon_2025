@@ -77,6 +77,16 @@ except ImportError as e:
     traceback.print_exc()
     sys.exit(1)
 
+# Import the new kinematic re-identification system
+try:
+    from kinematic_reidentification import KinematicReidentificationSystem  # type: ignore
+except ImportError as e:
+    print("Warning: Could not import kinematic_reidentification module")
+    print("Please ensure the kinematic_reidentification.py is in the same directory")
+    print("\nFull traceback:")
+    traceback.print_exc()
+    sys.exit(1)
+
 # Get the directory where this script is located
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 # Script is in project_root/backend/tracking/, so go up 2 levels to reach project_root
@@ -137,7 +147,17 @@ class RealtimeReidentificationTracker:
         self.ultra_long_occlusion_threshold = 20  # Frames
         self.feature_decay_rate = 0.95  # How much to decay feature importance over time
         
-        print("✅ Enhanced re-identification system initialized for longer occlusions")
+        # Initialize kinematic re-identification system
+        self.kinematic_reid_system = KinematicReidentificationSystem(
+            max_occlusion_frames=max_occlusion_frames,
+            kinematic_weight=0.6,  # Higher weight for kinematic prediction
+            appearance_weight=0.4  # Lower weight for appearance features
+        )
+        
+        # Drone pose for 3D positioning (can be set externally)
+        self.drone_pose = None
+        
+        print("✅ Enhanced re-identification system with kinematic prediction initialized")
         
         # Database integration
         self.enable_database = enable_database
@@ -156,6 +176,20 @@ class RealtimeReidentificationTracker:
         self.frame_count = 0
         self.start_time = None
         self.session_id = None
+        
+        # Track ID mapping for re-identification consistency
+        self.id_mapping = {}  # Maps temporary IDs to consistent IDs
+        self.next_consistent_id = 1
+        
+        # Track history for kinematic tracking
+        self.track_history = {}
+        
+        # Velocity smoothing parameter
+        self.velocity_smoothing = 0.7
+    
+    def set_drone_pose(self, drone_pose):
+        """Set the current drone pose for 3D positioning"""
+        self.drone_pose = drone_pose
         
         # Track ID mapping for re-identification consistency
         self.id_mapping = {}  # Maps temporary IDs to consistent IDs
@@ -352,6 +386,98 @@ class RealtimeReidentificationTracker:
 
         return velocity
     
+    def _update_kinematic_tracking(self, detections, frame, frame_timestamp):
+        """Update kinematic tracking for all active tracks"""
+        timestamp = time.time()
+        
+        # Track which IDs are currently active
+        active_track_ids = set()
+        
+        for i in range(len(detections)):
+            if detections.tracker_id[i] is not None:
+                track_id = int(detections.tracker_id[i])
+                active_track_ids.add(track_id)
+                
+                # Get object position and bounding box
+                bbox = detections.xyxy[i]
+                center_x = (bbox[0] + bbox[2]) / 2
+                center_y = (bbox[1] + bbox[3]) / 2
+                position = (center_x, center_y)
+                
+                # Get class name
+                class_name = None
+                if detections.class_id[i] is not None:
+                    class_name = self.model.names[detections.class_id[i]]
+                
+                # Extract appearance features
+                appearance_features = None
+                try:
+                    appearance_features = self.reid_system.feature_extractor.extract_all_features(frame, bbox)
+                except Exception as e:
+                    print(f"Warning: Could not extract appearance features: {e}")
+                
+                # Update kinematic tracking
+                self.kinematic_reid_system.update_track(
+                    track_id=track_id,
+                    position=position,
+                    bbox=bbox,
+                    timestamp=timestamp,
+                    appearance_features=appearance_features,
+                    class_name=class_name,
+                    drone_pose=self.drone_pose
+                )
+        
+        # Handle lost tracks
+        self._handle_lost_tracks(active_track_ids, frame, timestamp)
+        
+        # Clean up old tracks
+        self.kinematic_reid_system.cleanup_old_tracks(list(active_track_ids))
+    
+    def _handle_lost_tracks(self, active_track_ids, frame, timestamp):
+        """Handle tracks that are no longer active (lost)"""
+        # Get tracks that were active in the previous frame but are not now
+        if not hasattr(self, '_previous_active_tracks'):
+            self._previous_active_tracks = set()
+        
+        lost_track_ids = self._previous_active_tracks - active_track_ids
+        
+        for track_id in lost_track_ids:
+            # Get last known state from track history
+            if track_id in self.track_history:
+                last_state = self.track_history[track_id]
+                last_position = last_state['center']
+                last_timestamp = last_state['timestamp']
+                
+                # Estimate last bounding box (this is approximate)
+                # In a real implementation, you'd want to store the last bbox
+                bbox_size = 20  # Default size
+                last_bbox = np.array([
+                    last_position[0] - bbox_size,
+                    last_position[1] - bbox_size,
+                    last_position[0] + bbox_size,
+                    last_position[1] + bbox_size
+                ])
+                
+                # Get class name from track statistics
+                class_name = 'unknown'
+                if hasattr(self.kinematic_reid_system, 'track_statistics'):
+                    if track_id in self.kinematic_reid_system.track_statistics:
+                        class_name = self.kinematic_reid_system.track_statistics[track_id].get('class_name', 'unknown')
+                
+                # Mark track as lost
+                self.kinematic_reid_system.lose_track(
+                    track_id=track_id,
+                    last_position=last_position,
+                    last_bbox=last_bbox,
+                    last_timestamp=last_timestamp,
+                    appearance_features=None,  # Would need to store this
+                    class_name=class_name,
+                    drone_pose=self.drone_pose
+                )
+        
+        # Update previous active tracks
+        self._previous_active_tracks = active_track_ids.copy()
+    
     def process_frame(self, frame, frame_timestamp):
         """Process a single frame for detection, tracking, and re-identification"""
         # Run YOLO detection
@@ -364,9 +490,17 @@ class RealtimeReidentificationTracker:
         # Update tracker
         detections = self.tracker.update_with_detections(detections)
         
+        # Update kinematic tracking for active tracks
+        self._update_kinematic_tracking(detections, frame, frame_timestamp)
+        
         # Apply enhanced re-identification with multiple strategies
         timestamp = time.time()
         detections = self.enhanced_reidentification(detections, frame, timestamp)
+        
+        # Apply kinematic re-identification
+        detections = self.kinematic_reid_system.process_detections(
+            detections, frame, timestamp, self.reid_system.feature_extractor
+        )
         
         # Extract tracking data for database
         tracking_data = self.extract_tracking_data(detections, frame_timestamp)
@@ -742,21 +876,26 @@ class RealtimeReidentificationTracker:
         cv2.putText(frame, f"ReID: {reid_stats['successful_reidentifications']}", (10, 120), 
                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
         
+        # Kinematic re-identification stats
+        kinematic_stats = self.kinematic_reid_system.get_statistics()
+        cv2.putText(frame, f"KinReID: {kinematic_stats['performance_stats']['combined_matches']}", (10, 150), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
+        
         # Active tracks
-        cv2.putText(frame, f"Active: {reid_stats['active_tracks']}", (10, 150), 
+        cv2.putText(frame, f"Active: {reid_stats['active_tracks']}", (10, 180), 
                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
         
         # Lost tracks
-        cv2.putText(frame, f"Lost: {reid_stats['lost_tracks_count']}", (10, 180), 
+        cv2.putText(frame, f"Lost: {kinematic_stats['lost_tracks_count']}", (10, 210), 
                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 165, 0), 2)
         
         # Database status
         if self.enable_database:
-            cv2.putText(frame, f"DB: {db_status}", (10, 210), 
+            cv2.putText(frame, f"DB: {db_status}", (10, 240), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
         
         # Controls info
-        cv2.putText(frame, "Controls: 'q'=quit, 's'=save, 'r'=reset, SPACE=pause, 'i'=reid info, 'm'=id mapping", 
+        cv2.putText(frame, "Controls: 'q'=quit, 's'=save, 'r'=reset, SPACE=pause, 'i'=reid info, 'k'=kinematic info", 
                    (10, frame.shape[0] - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
         
         return frame
@@ -784,6 +923,32 @@ class RealtimeReidentificationTracker:
         for original_id, consistent_id in self.id_mapping.items():
             print(f"Original ID {original_id} -> Consistent ID {consistent_id}")
         print("=" * 30)
+    
+    def print_kinematic_info(self):
+        """Print kinematic re-identification statistics"""
+        stats = self.kinematic_reid_system.get_statistics()
+        print("\n🚀 Kinematic Re-identification Statistics:")
+        print("=" * 50)
+        print(f"Lost tracks: {stats['lost_tracks_count']}")
+        print(f"Active tracks: {stats['active_tracks_count']}")
+        print(f"Total matches attempted: {stats['performance_stats']['total_matches_attempted']}")
+        print(f"Kinematic matches: {stats['performance_stats']['kinematic_matches']}")
+        print(f"Appearance matches: {stats['performance_stats']['appearance_matches']}")
+        print(f"Combined matches: {stats['performance_stats']['combined_matches']}")
+        print("=" * 50)
+        
+        # Print details for lost tracks
+        if stats['lost_tracks_count'] > 0:
+            print("\n🔍 Lost Track Details:")
+            for track_id in self.kinematic_reid_system.lost_tracks.keys():
+                track_info = self.kinematic_reid_system.get_lost_track_info(track_id)
+                if track_info:
+                    print(f"Track {track_id}: Lost for {track_info['frames_lost']} frames")
+                    if 'current_prediction' in track_info:
+                        pred = track_info['current_prediction']
+                        print(f"  Predicted position: ({pred['position'][0]:.1f}, {pred['position'][1]:.1f})")
+                        print(f"  Uncertainty: {pred['uncertainty']:.1f}")
+                        print(f"  Confidence: {pred['confidence']:.2f}")
     
     def run(self, video_path):
         """Main loop for real-time video tracking with re-identification"""
@@ -821,6 +986,7 @@ class RealtimeReidentificationTracker:
         print("Press SPACE to pause/resume")
         print("Press 'i' to show database info")
         print("Press 'R' to show re-identification info")
+        print("Press 'K' to show kinematic re-identification info")
         print("Press 'M' to show ID mapping")
         print("=====================================================\n")
         
@@ -920,6 +1086,9 @@ class RealtimeReidentificationTracker:
                 elif key == ord('R'):
                     # Show re-identification info
                     self.print_reid_info()
+                elif key == ord('K'):
+                    # Show kinematic re-identification info
+                    self.print_kinematic_info()
                 elif key == ord('M'):
                     # Show ID mapping
                     self.print_id_mapping()
@@ -947,6 +1116,10 @@ class RealtimeReidentificationTracker:
             # Print final re-identification statistics
             print("\n📊 Final Re-identification Statistics:")
             self.print_reid_info()
+            
+            # Print final kinematic re-identification statistics
+            print("\n🚀 Final Kinematic Re-identification Statistics:")
+            self.print_kinematic_info()
             
             print("Video processing complete!")
 
