@@ -13,6 +13,7 @@ import supervision as sv
 from ultralytics import YOLO
 import numpy as np
 import time
+import math
 from datetime import datetime
 import threading
 import queue
@@ -184,7 +185,7 @@ class IntegratedRealtimeTracker:
         return labels
     
     def extract_tracking_data(self, detections, frame_timestamp):
-        """Extract tracking data for database storage"""
+        """Extract tracking data for database storage with velocity and acceleration"""
         frame_data = {
             'frame_number': self.frame_count,
             'timestamp': frame_timestamp,
@@ -209,9 +210,79 @@ class IntegratedRealtimeTracker:
                         'y': float((detections.xyxy[i][1] + detections.xyxy[i][3]) / 2)
                     }
                 }
+                
+                # Calculate velocity and acceleration if we have track history
+                velocity = self._compute_velocity(int(detections.tracker_id[i]), obj_data['center'], frame_timestamp)
+                obj_data['velocity'] = velocity
+                
                 frame_data['objects'].append(obj_data)
         
         return frame_data
+    
+    def _compute_velocity(self, track_id, center, timestamp):
+        """Compute velocity and acceleration for a track"""
+        # Initialize track history if not exists
+        if not hasattr(self, 'track_history'):
+            self.track_history = {}
+        
+        prev_state = self.track_history.get(track_id)
+        velocity = {
+            'vx': 0.0,
+            'vy': 0.0,
+            'speed': 0.0,
+            'direction': None,
+            'delta_time': None
+        }
+        
+        if prev_state is not None:
+            dt = timestamp - prev_state['timestamp']
+            velocity['delta_time'] = dt if dt >= 0 else None
+            
+            if dt and dt > 1e-3:
+                prev_cx, prev_cy = prev_state['center']
+                dx = center['x'] - prev_cx
+                dy = center['y'] - prev_cy
+                vx = dx / dt
+                vy = dy / dt
+                
+                # Calculate acceleration
+                acceleration = {'ax': 0.0, 'ay': 0.0, 'magnitude': 0.0}
+                if 'velocity' in prev_state:
+                    prev_vx, prev_vy = prev_state['velocity']['vx'], prev_state['velocity']['vy']
+                    ax = (vx - prev_vx) / dt
+                    ay = (vy - prev_vy) / dt
+                    acceleration = {
+                        'ax': ax,
+                        'ay': ay,
+                        'magnitude': math.sqrt(ax**2 + ay**2)
+                    }
+                
+                velocity['acceleration'] = acceleration
+            else:
+                velocity['acceleration'] = prev_state.get('acceleration', {'ax': 0.0, 'ay': 0.0, 'magnitude': 0.0})
+        else:
+            velocity['acceleration'] = {'ax': 0.0, 'ay': 0.0, 'magnitude': 0.0}
+        
+        speed = math.sqrt(velocity['vx']**2 + velocity['vy']**2)
+        heading = None
+        if speed > 1e-3:
+            heading = (math.degrees(math.atan2(velocity['vy'], velocity['vx'])) + 360.0) % 360.0
+        
+        velocity.update({
+            'vx': velocity['vx'],
+            'vy': velocity['vy'],
+            'speed': speed,
+            'direction': heading,
+        })
+        
+        # Update history
+        self.track_history[track_id] = {
+            'center': (center['x'], center['y']),
+            'timestamp': timestamp,
+            'velocity': velocity
+        }
+        
+        return velocity
     
     def process_frame(self, frame, frame_timestamp):
         """Process a single frame for detection and tracking"""

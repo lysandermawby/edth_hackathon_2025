@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Real-time object tracking using YOLO11 model (saved as yolo11.pt).
+Real-time object tracking using YOLO11 model (saved as yolo11m.pt).
 
 Accesses the camera and tracks objects in real-time.
 
@@ -21,7 +21,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(os.path.dirname(SCRIPT_DIR))
 
 class RealtimeTracker:
-    def __init__(self, model_path="../../models/yolo11.pt", camera_id=0):
+    def __init__(self, model_path="../../models/yolo11m.pt", camera_id=0):
         """
         Initialize the real-time tracker
         
@@ -172,11 +172,11 @@ def resolve_model_path(model_path):
 def parse_arguments():
     """Parse command line arguments"""
     # Set default paths relative to project root
-    default_model = os.path.join(PROJECT_ROOT, "models", "yolo11.pt")
+    default_model = os.path.join(PROJECT_ROOT, "models", "yolo11m.pt")
     
     parser = argparse.ArgumentParser(description="Integrated real-time video tracking with database storage")
     parser.add_argument("model_path", type=str, default=default_model,
-                       nargs='?', help="Path to YOLO model file (default: models/yolo11.pt)")
+                       nargs='?', help="Path to YOLO model file (default: models/yolo11m.pt)")
     return parser.parse_args()
 
 def main():

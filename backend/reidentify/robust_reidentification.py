@@ -247,7 +247,8 @@ class MultiModalFeatureExtractor:
                     multi_scale_features['color_hist'].append(color_feat)
                 if np.linalg.norm(hog_feat) > 1e-6:
                     multi_scale_features['hog'].append(hog_feat)
-            except Exception:
+            except Exception as e:
+                print(f"Warning: Feature extraction failed at scale {scale}: {e}")
                 continue
 
         # Combine multi-scale features
@@ -266,10 +267,18 @@ class MultiModalFeatureExtractor:
                     features[feature_type] = np.average(multi_scale_features[feature_type], axis=0, weights=weights)
             else:
                 # Fallback to single-scale extraction
-                if feature_type == 'color_hist':
-                    features[feature_type] = self.extract_color_histogram(image, bbox)
-                elif feature_type == 'hog':
-                    features[feature_type] = self.extract_hog_features(image, bbox)
+                try:
+                    if feature_type == 'color_hist':
+                        features[feature_type] = self.extract_color_histogram(image, bbox)
+                    elif feature_type == 'hog':
+                        features[feature_type] = self.extract_hog_features(image, bbox)
+                except Exception as e:
+                    print(f"Warning: Fallback feature extraction failed for {feature_type}: {e}")
+                    # Provide default features to prevent complete failure
+                    if feature_type == 'color_hist':
+                        features[feature_type] = np.ones(256, dtype=np.float32) / 256.0
+                    elif feature_type == 'hog':
+                        features[feature_type] = np.ones(1764, dtype=np.float32) / 1764.0
 
         return features
     
@@ -282,39 +291,59 @@ class MultiModalFeatureExtractor:
 
         # Color histogram similarity (Bhattacharyya distance)
         if 'color_hist' in features1 and 'color_hist' in features2:
-            hist_sim = cv2.compareHist(
-                features1['color_hist'].reshape(-1, 1),
-                features2['color_hist'].reshape(-1, 1),
-                cv2.HISTCMP_BHATTACHARYYA
-            )
-            color_similarity = 1.0 - hist_sim  # Convert distance to similarity
+            try:
+                # Ensure both histograms have the same shape and data type
+                hist1 = features1['color_hist'].astype(np.float32).reshape(-1, 1)
+                hist2 = features2['color_hist'].astype(np.float32).reshape(-1, 1)
+                
+                # Normalize histograms to ensure they sum to 1
+                hist1 = hist1 / (np.sum(hist1) + 1e-8)
+                hist2 = hist2 / (np.sum(hist2) + 1e-8)
+                
+                hist_sim = cv2.compareHist(hist1, hist2, cv2.HISTCMP_BHATTACHARYYA)
+                color_similarity = 1.0 - hist_sim  # Convert distance to similarity
 
-            # Compute confidence based on feature quality
-            color_conf = min(np.sum(features1['color_hist']), np.sum(features2['color_hist']))
-            color_conf = min(color_conf, 1.0)  # Normalize
+                # Compute confidence based on feature quality
+                color_conf = min(np.sum(features1['color_hist']), np.sum(features2['color_hist']))
+                color_conf = min(color_conf, 1.0)  # Normalize
 
-            similarities.append(color_similarity)
-            weights.append(self.feature_weights['color_hist'])
-            confidences.append(color_conf)
+                similarities.append(color_similarity)
+                weights.append(self.feature_weights['color_hist'])
+                confidences.append(color_conf)
+            except Exception as e:
+                print(f"Warning: Color histogram comparison failed: {e}")
+                # Skip color histogram comparison if it fails
+                pass
 
         # HOG similarity (cosine similarity)
         if 'hog' in features1 and 'hog' in features2:
-            # Compute cosine similarity
-            norm1 = np.linalg.norm(features1['hog'])
-            norm2 = np.linalg.norm(features2['hog'])
+            try:
+                # Ensure both HOG features have the same shape and data type
+                hog1 = features1['hog'].astype(np.float32)
+                hog2 = features2['hog'].astype(np.float32)
+                
+                # Compute cosine similarity
+                norm1 = np.linalg.norm(hog1)
+                norm2 = np.linalg.norm(hog2)
 
-            if norm1 > 1e-8 and norm2 > 1e-8:
-                hog_sim = np.dot(features1['hog'], features2['hog']) / (norm1 * norm2)
+                if norm1 > 1e-8 and norm2 > 1e-8:
+                    hog_sim = np.dot(hog1, hog2) / (norm1 * norm2)
 
-                # HOG confidence based on feature magnitude
-                hog_conf = min(norm1, norm2) / max(norm1, norm2) if max(norm1, norm2) > 1e-8 else 0.0
+                    # HOG confidence based on feature magnitude
+                    hog_conf = min(norm1, norm2) / max(norm1, norm2) if max(norm1, norm2) > 1e-8 else 0.0
 
-                similarities.append(hog_sim)
-                weights.append(self.feature_weights['hog'])
-                confidences.append(hog_conf)
+                    similarities.append(hog_sim)
+                    weights.append(self.feature_weights['hog'])
+                    confidences.append(hog_conf)
+            except Exception as e:
+                print(f"Warning: HOG feature comparison failed: {e}")
+                # Skip HOG comparison if it fails
+                pass
 
         if not similarities:
-            return 0.0
+            # If no features could be compared, return a default low similarity
+            print("Warning: No features could be compared, returning default similarity")
+            return 0.1
 
         # Confidence-weighted fusion
         similarities = np.array(similarities)
@@ -352,21 +381,37 @@ class MultiModalFeatureExtractor:
                 if feature_type in hist_features and feature_type in candidate_features:
                     if feature_type == 'color_hist':
                         # Bhattacharyya distance for color histograms
-                        hist_sim = cv2.compareHist(
-                            hist_features[feature_type].reshape(-1, 1),
-                            candidate_features[feature_type].reshape(-1, 1),
-                            cv2.HISTCMP_BHATTACHARYYA
-                        )
-                        sim_score = 1.0 - hist_sim
+                        try:
+                            # Ensure both histograms have the same shape and data type
+                            hist1 = hist_features[feature_type].astype(np.float32).reshape(-1, 1)
+                            hist2 = candidate_features[feature_type].astype(np.float32).reshape(-1, 1)
+                            
+                            # Normalize histograms to ensure they sum to 1
+                            hist1 = hist1 / (np.sum(hist1) + 1e-8)
+                            hist2 = hist2 / (np.sum(hist2) + 1e-8)
+                            
+                            hist_sim = cv2.compareHist(hist1, hist2, cv2.HISTCMP_BHATTACHARYYA)
+                            sim_score = 1.0 - hist_sim
+                        except Exception as e:
+                            print(f"Warning: Consensus color histogram comparison failed: {e}")
+                            sim_score = 0.1  # Default low similarity
                     else:
                         # Cosine similarity for HOG features
-                        norm1 = np.linalg.norm(hist_features[feature_type])
-                        norm2 = np.linalg.norm(candidate_features[feature_type])
+                        try:
+                            # Ensure both HOG features have the same shape and data type
+                            hog1 = hist_features[feature_type].astype(np.float32)
+                            hog2 = candidate_features[feature_type].astype(np.float32)
+                            
+                            norm1 = np.linalg.norm(hog1)
+                            norm2 = np.linalg.norm(hog2)
 
-                        if norm1 > 1e-8 and norm2 > 1e-8:
-                            sim_score = np.dot(hist_features[feature_type], candidate_features[feature_type]) / (norm1 * norm2)
-                        else:
-                            sim_score = 0.0
+                            if norm1 > 1e-8 and norm2 > 1e-8:
+                                sim_score = np.dot(hog1, hog2) / (norm1 * norm2)
+                            else:
+                                sim_score = 0.0
+                        except Exception as e:
+                            print(f"Warning: Consensus HOG feature comparison failed: {e}")
+                            sim_score = 0.1  # Default low similarity
 
                     feature_similarities[feature_type].append(sim_score)
 

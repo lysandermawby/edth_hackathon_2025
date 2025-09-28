@@ -7,6 +7,7 @@ help:
 	@echo "  crop                    - Crop video using time configuration"
 	@echo "  map_viewer              - Launch drone video and map viewer with GPS tracking"
 	@echo "  reidentification_tracker - Run re-identification tracker on quantum drone video"
+	@echo "  kinematic_reid_tracker   - Run enhanced kinematic re-identification tracker"
 	@echo "  realtime_tracker        - Run real-time camera tracking with YOLO11 model"
 	@echo "  db_visualize            - Show database schema and basic tracking data"
 	@echo "  db_visualize_session    - Show data for specific session (use SESSION_ID=1)"
@@ -30,8 +31,9 @@ help:
 	@echo "  make analyse                 # Run basic tracking"
 	@echo "  make map_viewer              # View drone video with GPS map overlay"
 	@echo "  make reidentification_tracker # Run re-identification tracker on quantum drone video"
+	@echo "  make kinematic_reid_tracker   # Run enhanced kinematic re-identification tracker"
 	@echo "  make realtime_tracker        # Run real-time camera tracking"
-	@echo "  make realtime_tracker MODEL_PATH=models/yolo11.pt # Use specific model"
+	@echo "  make realtime_tracker MODEL_PATH=models/yolo11m.pt # Use specific model"
 	@echo "  make crop                    # Crop video to specific time segments"
 	@echo "  make db_visualize            # Show database contents"
 	@echo "  make db_visualize_session SESSION_ID=1 # Show data for session 1"
@@ -44,9 +46,10 @@ help:
 # variable declarations
 
 TARGET_VIDEO := data/Individual_2.mp4 # default video to process
-MODEL_PATH := models/yolo11.pt # default model for realtime tracker
+MODEL_PATH := models/yolo11m.pt # default model for realtime tracker
 ANALYSIS_SCRIPT := backend/tracking/integrated_realtime_tracker.py
 REIDENTIFICATION_TRACKER_SCRIPT := backend/tracking/realtime_reidentification_tracker.py
+KINEMATIC_REID_TRACKER_SCRIPT := backend/tracking/realtime_reidentification_tracker.py
 REALTIMETRACKER_SCRIPT := tracking/realtime_tracker.py
 
 # Video cropping variables
@@ -92,6 +95,13 @@ reidentification_tracker:
 	@if [ -z "$(VIDEO_PATH)" ]; then echo "Error: VIDEO_PATH is not set"; exit 1; fi
 	@echo "Running reidentification tracker: $(VIDEO_PATH)"
 	@python $(REIDENTIFICATION_TRACKER_SCRIPT) $(VIDEO_PATH)
+
+kinematic_reid_tracker:
+	@if [ -z "$(TARGET_VIDEO)" ]; then echo "Error: TARGET_VIDEO is not set"; exit 1; fi
+	@if [ -z "$(KINEMATIC_REID_TRACKER_SCRIPT)" ]; then echo "Error: KINEMATIC_REID_TRACKER_SCRIPT is not set"; exit 1; fi
+	@echo "Running enhanced kinematic re-identification tracker: $(TARGET_VIDEO)"
+	@echo "Features: Position projection, velocity/acceleration tracking, multi-modal matching"
+	@python $(KINEMATIC_REID_TRACKER_SCRIPT) $(TARGET_VIDEO) --show-labels
 
 # Database visualization targets
 db_visualize:
@@ -145,3 +155,4 @@ realtime_tracker:
 	@pkill -f "realtime_tracker.py" 2>/dev/null || true
 	@echo "Running realtime tracker with model: $(MODEL_PATH)"
 	@cd backend && poetry run python "$(REALTIMETRACKER_SCRIPT)" "$(MODEL_PATH)"
+
